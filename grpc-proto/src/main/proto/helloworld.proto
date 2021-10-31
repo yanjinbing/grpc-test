@@ -12,14 +12,15 @@ service HelloWorld {
   rpc GetLeader(GetLeaderRequest) returns (GetLeaderReply){}
   // Sends a greeting
   rpc SayHello (HelloRequest) returns (HelloReply) {}
+
+  rpc BatchSayHello (BatchRequest) returns (BatchReply) {}
 }
 
 // The request message containing the user's name.
 message HelloRequest {
   string groupId = 1;
-  string key = 2;
-  string value = 3;
-  uint64 store_id = 4;
+  bytes key = 2;
+  bytes value = 3;
 }
 
 // The response message containing the greetings
@@ -34,4 +35,12 @@ message GetLeaderRequest{
 message GetLeaderReply{
   string groupId = 1;
   string leader = 2;
+}
+
+message BatchRequest{
+  repeated string message = 1;
+}
+
+message BatchReply{
+
 }

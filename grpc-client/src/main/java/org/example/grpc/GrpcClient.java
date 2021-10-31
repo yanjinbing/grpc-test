@@ -1,71 +1,160 @@
 package org.example.grpc;
 
+import com.google.protobuf.ByteString;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class GrpcClient {
+    static String defaultAddr ;
+    static String[][] PEERIDTOGRPC;
 
-    static String[][] PEERIDTOGRPC = {
-            {"127.0.0.1:8081","127.0.0.1:8091"},
-            {"127.0.0.1:8082","127.0.0.1:8092"},
-            {"127.0.0.1:8083","127.0.0.1:8093"}
-    };
+    static boolean isLocalHost = false;
 
-    final String groupId = "a1";
-    final String defaultAddr = "127.0.0.1:8091";
-    String grpcAddr = defaultAddr;
+    static {
+        if (isLocalHost) {
+            defaultAddr = "127.0.0.1:8091";
+            PEERIDTOGRPC = new String[][]{
+                    {"127.0.0.1:8081", "127.0.0.1:8091"},
+                    {"127.0.0.1:8082", "127.0.0.1:8092"},
+                    {"127.0.0.1:8083", "127.0.0.1:8093"}
+            };
+        } else {
+            defaultAddr = "10.81.116.79:8091";
+            PEERIDTOGRPC = new String[][]{
+                    {"10.81.116.77:8081", "10.81.116.77:8091"},
+                    {"10.81.116.78:8081", "10.81.116.78:8091"},
+                    {"10.81.116.79:8081", "10.81.116.79:8091"}
+            };
+        }
+    }
+
     Map<String, String> peerIdToGrpc;
-
-    public GrpcClient(){
+    ThreadLocal<Client> clients = new ThreadLocal<>();
+    public GrpcClient() {
         peerIdToGrpc = new HashMap<>();
-        for(String[] peers : PEERIDTOGRPC){
+        for (String[] peers : PEERIDTOGRPC) {
             peerIdToGrpc.put(peers[0], peers[1]);
         }
     }
 
-    public void flushLeaderAddr(){
+    public Client flushLeader(String groupId) {
         ManagedChannel channel = ManagedChannelBuilder.forTarget(defaultAddr).usePlaintext().build();
         //创建方法存根
         HelloWorldGrpc.HelloWorldBlockingStub stub = HelloWorldGrpc.newBlockingStub(channel);
-        try{
+        try {
             GetLeaderRequest request = GetLeaderRequest.newBuilder()
                     .setGroupId(groupId)
                     .build();
             GetLeaderReply reply = stub.getLeader(request);
-            grpcAddr = peerIdToGrpc.get(reply.getLeader());
-            System.out.println("Leader is " + reply.getLeader());
-        }catch (Exception e){
+            String grpcAddr = peerIdToGrpc.get(reply.getLeader());
+            Client client = clients.get();
+            if (client == null){
+                client = new Client();
+                clients.set(client);
+            }
+            client.channel = ManagedChannelBuilder.forTarget(grpcAddr).usePlaintext().build();
+            client.stub = HelloWorldGrpc.newBlockingStub(client.channel);
+            client.stub.withMaxInboundMessageSize(1024*1024*10);
+            client.stub.withMaxOutboundMessageSize(1024*1024*10);
+            System.out.println(groupId + " leader is " + reply.getLeader());
+            return client;
+        } catch (Exception e) {
             e.printStackTrace();
             e.getCause().printStackTrace();
+            throw e;
         }
     }
 
-    public void stressTest(int count){
-        ManagedChannel channel = ManagedChannelBuilder.forTarget(grpcAddr).usePlaintext().build();
-        //创建方法存根
-        HelloWorldGrpc.HelloWorldBlockingStub stub = HelloWorldGrpc.newBlockingStub(channel);
-        String groupId = "a1";
-        for(int i = 0; i<count; i++) {
+
+    Client getGrpcClient(String groupId){
+        Client client = clients.get();
+        if ( client == null )
+            client = flushLeader(groupId);
+        return client;
+    }
+
+    public void sendOne(String groupId, ByteString key, ByteString value) {
+        try {
             // 构建消息
             HelloRequest request = HelloRequest.newBuilder()
                     .setGroupId(groupId)
-                    .setKey("key " + System.currentTimeMillis())
-                    .setValue("Value1")
+                    .setKey(key)
+                    .setValue(value)
                     .build();
+            Client client = getGrpcClient(groupId);
             // 发送消息
-            HelloReply response = stub.sayHello(request);
-            System.out.println(response.getMessage());
+            HelloReply response = client.stub.sayHello(request);
+        }catch (Throwable e){
+            // leader发生改变，重新刷新Leader
+            flushLeader(groupId);
+            System.out.println(e.getMessage());
+            throw  e;
         }
+
+    }
+    public void batchTest(String[] args) throws InterruptedException {
+        if ( args.length < 3) {
+            System.out.println("线程数 每线程条目数 值大小");
+            System.exit(0);
+        }
+        int threads = Integer.parseInt(args[0]);
+        int total = Integer.parseInt(args[1]);
+        int batches = Integer.parseInt(args[2]);
+        final Long[] start = {System.currentTimeMillis()};
+        final AtomicLong[] lastC = {new AtomicLong()};
+
+
+
+        System.out.println(String.format("线程数 %d, 每线程条目数 %d, 每批次大小 %d", threads, total, batches));
+
+        byte[] value = new byte[batches];
+        for(int n = 0; n < batches; n++){
+            value[n] = (byte)(n + 71);
+        }
+        ByteString bsvalue = ByteString.copyFrom(value);
+        AtomicLong counter = new AtomicLong(0);
+        ExecutorService executor = Executors.newFixedThreadPool(threads);
+        for (int t = 0; t < threads; t++) {
+            int finalT = t;
+            executor.execute(() -> {
+                for (int i = 0; i < total; i++) {
+                    sendOne("a" + finalT, ByteString.copyFromUtf8("Key " + System.currentTimeMillis()), bsvalue);
+                    long c = counter.incrementAndGet();
+                    if ( System.currentTimeMillis() - start[0] > 1000*5){
+                        synchronized (start[0]) {
+                            if ( System.currentTimeMillis() - start[0] > 1000*5){
+                                System.out.println(String.format("条目数 %d, 平均性能 %d K",
+                                        c, (c - lastC[0].get()) * batches / (System.currentTimeMillis() - start[0])));
+                                lastC[0].set(c);
+                                start[0] = System.currentTimeMillis();
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        executor.shutdown();
+        executor.awaitTermination(1, TimeUnit.HOURS);
+
+        System.out.println(String.format("条目数 %d, 平均数据量 %d",
+                counter.get(), counter.get() *1000/ (System.currentTimeMillis() - start[0])));
     }
 
-    public static void main(String[] args){
+    class Client{
+        public ManagedChannel channel = null;
+        //创建方法存根
+        public HelloWorldGrpc.HelloWorldBlockingStub stub = null;
+    }
+
+    public static void main(String[] args) throws InterruptedException {
         GrpcClient client = new GrpcClient();
-        client.flushLeaderAddr();
-        client.stressTest(100);
-
-
+        client.batchTest(args);
     }
 }

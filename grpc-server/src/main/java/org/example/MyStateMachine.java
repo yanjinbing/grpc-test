@@ -1,14 +1,21 @@
 package org.example;
 
+import com.alipay.sofa.jraft.Closure;
 import com.alipay.sofa.jraft.Iterator;
 import com.alipay.sofa.jraft.Status;
 import com.alipay.sofa.jraft.core.StateMachineAdapter;
+import com.alipay.sofa.jraft.error.RaftError;
 import com.alipay.sofa.jraft.error.RaftException;
+import com.alipay.sofa.jraft.storage.snapshot.SnapshotReader;
+import com.alipay.sofa.jraft.storage.snapshot.SnapshotWriter;
 import io.grpc.netty.shaded.io.netty.buffer.ByteBufInputStream;
+import org.apache.commons.io.FileUtils;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.ObjectInputStream;
+import java.nio.charset.Charset;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class MyStateMachine extends StateMachineAdapter {
@@ -16,6 +23,15 @@ public class MyStateMachine extends StateMachineAdapter {
 
     public boolean isLeader() {
         return this.leaderTerm.get() > 0;
+    }
+
+
+    private final AtomicLong counter = new AtomicLong(-1);
+    private long startTime = System.currentTimeMillis();
+    private static long recvData = 0;
+    private String groupId;
+    public MyStateMachine(String groupId){
+        this.groupId = groupId;
     }
 
     @Override
@@ -26,7 +42,8 @@ public class MyStateMachine extends StateMachineAdapter {
             if (iterator.done() != null) {
                 closure = (StoreClosure) iterator.done();
                 Operation op = closure.getOperation();
-                System.out.println("本地收到 " + new String(op.getKey()));
+                recvData += op.getValue().length;
+
                 // 本地数据
             } else {
                 // 远端数据
@@ -34,7 +51,8 @@ public class MyStateMachine extends StateMachineAdapter {
                 try {
                     input = new ObjectInputStream(new ByteArrayInputStream(iterator.getData().array()));
                     Operation op = (Operation) input.readObject();
-                    System.out.println("远端收到 " + new String(op.getKey()));
+                    recvData += op.getValue().length;
+
                 } catch (IOException | ClassNotFoundException e) {
                     e.printStackTrace();
                 } finally {
@@ -51,14 +69,21 @@ public class MyStateMachine extends StateMachineAdapter {
             if (closure != null) {
                 closure.run(Status.OK());
             }
+            long c = counter.incrementAndGet();
+            if ( System.currentTimeMillis() - startTime > 1000*10) {
+                System.out.println(String.format(groupId + " receive data : %d, size is %d K",
+                        c, recvData / (System.currentTimeMillis() - startTime)));
+                startTime = System.currentTimeMillis();
+                recvData = 0;
+            }
             iterator.next();
         }
-        System.out.println("raft收到数据");
+
     }
 
     @Override
     public void onError(final RaftException e) {
-        System.out.println("发生错误 " + e.getStatus());
+        System.out.println(groupId + " error " + e.getStatus());
         e.printStackTrace();
     }
 
@@ -66,14 +91,48 @@ public class MyStateMachine extends StateMachineAdapter {
     public void onLeaderStart(final long term) {
         this.leaderTerm.set(term);
         super.onLeaderStart(term);
-        System.out.println("成为leader");
+        System.out.println(groupId + "  is leader");
     }
 
     @Override
     public void onLeaderStop(final Status status) {
         this.leaderTerm.set(-1);
         super.onLeaderStop(status);
-        System.out.println("失去leader " + status);
+        System.out.println(groupId + "  lose leader " + status);
+    }
+
+    @Override
+    public void onSnapshotSave(final SnapshotWriter writer, final Closure done) {
+        String filePath = writer.getPath() + File.separator + "snapshot";
+        try {
+            FileUtils.writeStringToFile(new File(filePath), groupId + "snapshot", Charset.defaultCharset());
+            if (writer.addFile("snapshot")){
+                System.out.println(groupId + " snapshot save");
+                done.run(Status.OK());
+            }else{
+                done.run(new Status(RaftError.EIO, "Fail to add file to writer"));
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            done.run(new Status(RaftError.EIO, "Fail to save counter snapshot %s", filePath));
+        }
+    }
+
+    @Override
+    public boolean onSnapshotLoad(final SnapshotReader reader) {
+        if (isLeader()) {
+            System.out.println("Leader is not supposed to load snapshot");
+            return false;
+        }
+        String filePath = reader.getPath() + File.separator + "snapshot";
+        try {
+            String value = FileUtils.readFileToString(new File(filePath), Charset.defaultCharset());
+            System.out.println(groupId + " snapshot load " + value);
+            return true;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return false;
     }
 
 }
