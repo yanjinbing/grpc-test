@@ -27,7 +27,7 @@ public class MyStateMachine extends StateMachineAdapter {
 
 
     private final AtomicLong counter = new AtomicLong(-1);
-    private long startTime = System.currentTimeMillis();
+    private static long startTime = System.currentTimeMillis();
     private static long recvData = 0;
     private String groupId;
     public MyStateMachine(String groupId){
@@ -70,11 +70,15 @@ public class MyStateMachine extends StateMachineAdapter {
                 closure.run(Status.OK());
             }
             long c = counter.incrementAndGet();
-            if ( System.currentTimeMillis() - startTime > 1000*10) {
-                System.out.println(String.format(groupId + " receive data : %d, size is %d K",
-                        c, recvData / (System.currentTimeMillis() - startTime)));
-                startTime = System.currentTimeMillis();
-                recvData = 0;
+            if (System.currentTimeMillis() - startTime > 1000 * 10) {
+                synchronized (counter) {
+                    if (System.currentTimeMillis() - startTime > 1000 * 10) {
+                        System.out.println(String.format(groupId + " receive data : %d, size is %d K",
+                                c, recvData / (System.currentTimeMillis() - startTime)));
+                        startTime = System.currentTimeMillis();
+                        recvData = 0;
+                    }
+                }
             }
             iterator.next();
         }

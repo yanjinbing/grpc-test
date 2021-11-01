@@ -11,7 +11,7 @@ import com.alipay.sofa.jraft.rpc.RpcServer;
 import com.google.protobuf.ByteString;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
-import io.grpc.StatusException;
+
 import io.grpc.stub.StreamObserver;
 import org.example.grpc.*;
 
@@ -20,7 +20,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -87,7 +87,7 @@ public class GrpcServer {
 
         String logPath = dataPath + "/log/" + groupId;
         String metaPath = dataPath + "/meta/" + groupId;
-        String snapPath = dataPath + "snapshot" + groupId;
+        String snapPath = dataPath + "/snapshot/" + groupId;
         new File(logPath).mkdirs();
         new File(metaPath).mkdirs();
         new File(snapPath).mkdirs();
