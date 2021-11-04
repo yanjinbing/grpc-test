@@ -77,6 +77,38 @@ public class GrpcServer {
         rpcServer = RaftRpcServerFactory.createRaftRpcServer(serverId.getEndpoint());
         rpcServer.init(null);
     }
+
+    /**
+     * 创建raft分组，并通知到其他peer
+     * @param groupId
+     */
+    public void startRaftGroup(String groupId){
+        String raftPath = raftParams.dataPath + "/" + groupId;
+        new File(raftPath).mkdirs();
+        // 创建状态机
+        MyStateMachine stateMachine = new MyStateMachine(groupId);
+        Configuration initConf = new Configuration();
+        initConf.parse(raftParams.peersList);
+        // 设置Node参数，包括日志存储路径和状态机实例
+        NodeOptions nodeOptions = new NodeOptions();
+        nodeOptions.setFsm(stateMachine);
+        // 日志路径
+        nodeOptions.setLogUri(raftPath + "/log");
+        // raft元数据路径
+        nodeOptions.setRaftMetaUri(raftPath + "/meta");
+        // 快照路径
+        nodeOptions.setSnapshotUri(raftPath + "/snap");
+        // 初始集群
+        nodeOptions.setInitialConf(initConf);
+        // 快照时间间隔
+        nodeOptions.setSnapshotIntervalSecs(1000);
+        // 构建raft组并启动raft
+        RaftGroupService raftGroupService = new RaftGroupService(groupId, serverId, nodeOptions, rpcServer, true);
+        Node raftNode = raftGroupService.start(false);
+
+        raftGroups.put(groupId, new RaftGroup(stateMachine, raftNode, raftGroupService));
+
+    }
     /**
      * 创建raft分组
      *
@@ -118,8 +150,6 @@ public class GrpcServer {
 
                     raftNode.shutdown();
                 }));
-
-
     }
 
 
@@ -144,6 +174,9 @@ public class GrpcServer {
         }
     }
 
+    /**
+     * 数据第一次写入的时候，创建raft分组，并通过grpc通知到其他的peer
+     */
 
     /**
      * 实现grpc服务
@@ -163,11 +196,12 @@ public class GrpcServer {
             //创建任务，发送给其他peer
 
            String groupId = request.getGroupId();
+           /*
            if ( !server.isLeader(groupId)){
                observer.onError(io.grpc.Status.ABORTED.asException());
                observer.onCompleted();
                return;
-           }
+           }*/
             try {
                 // 提交raft 任务
                 putTask(groupId, request.getKey().toByteArray(), request.getValue().toByteArray(),
@@ -227,7 +261,14 @@ public class GrpcServer {
             final Task task = new Task();
             task.setData(ByteBuffer.wrap(bos.toByteArray()));
             task.setDone(new StoreClosure(op, done));
-            this.server.getRaftNode(groupId).apply(task);
+
+            try {
+                this.server.getRaftNode(groupId).apply(task);
+            }catch (Exception e){
+                // 创建raft
+                this.server.startRaftGroup(groupId);
+                this.server.getRaftNode(groupId).apply(task);
+            }
         }
     }
 
@@ -274,9 +315,10 @@ public class GrpcServer {
         final String grpcPort = args[1];
         final String raftAddr = args[2];
         final String peersList = args[3];
-        long groupCount = 1;
+        long groupCount = 0;
         if ( args.length > 4 )
             groupCount = Long.valueOf(args[4]);
+        groupCount = 0;
 
 
         System.out.println("Start grpc server raft addr is " + raftAddr + ", grpc port is " + grpcPort);

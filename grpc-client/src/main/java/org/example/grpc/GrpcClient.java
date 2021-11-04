@@ -15,7 +15,7 @@ public class GrpcClient {
     static String defaultAddr ;
     static String[][] PEERIDTOGRPC;
 
-    static boolean isLocalHost = false;
+    static boolean isLocalHost = true;
 
     static {
         if (isLocalHost) {
@@ -52,8 +52,14 @@ public class GrpcClient {
             GetLeaderRequest request = GetLeaderRequest.newBuilder()
                     .setGroupId(groupId)
                     .build();
-            GetLeaderReply reply = stub.getLeader(request);
-            String grpcAddr = peerIdToGrpc.get(reply.getLeader());
+            String grpcAddr;
+            try {
+                GetLeaderReply reply = stub.getLeader(request);
+                grpcAddr = peerIdToGrpc.get(reply.getLeader());
+            }catch (Exception e){
+                e.printStackTrace();
+                grpcAddr = defaultAddr;
+            }
             Client client = clients.get();
             if (client == null){
                 client = new Client();
@@ -63,7 +69,7 @@ public class GrpcClient {
             client.stub = HelloWorldGrpc.newBlockingStub(client.channel);
             client.stub.withMaxInboundMessageSize(1024*1024*10);
             client.stub.withMaxOutboundMessageSize(1024*1024*10);
-            System.out.println(groupId + " leader is " + reply.getLeader());
+            System.out.println(groupId + " leader is " + grpcAddr);
             return client;
         } catch (Exception e) {
             e.printStackTrace();
@@ -101,7 +107,7 @@ public class GrpcClient {
     }
     public void batchTest(String[] args) throws InterruptedException {
         if ( args.length < 3) {
-            System.out.println("线程数 每线程条目数 值大小");
+            System.out.println("参数错误。线程数 每线程条目数 值大小");
             System.exit(0);
         }
         int threads = Integer.parseInt(args[0]);
