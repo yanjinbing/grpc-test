@@ -36,6 +36,16 @@ public class AddRaftNodeProcessor implements RpcProcessor<AddRaftNodeProcessor.R
 
         String graphName;
         String groupId;
+
+        public String getPeersList() {
+            return peersList;
+        }
+
+        public void setPeersList(String peersList) {
+            this.peersList = peersList;
+        }
+
+        String peersList;
     }
 
     public static class Response implements Serializable{
@@ -58,7 +68,7 @@ public class AddRaftNodeProcessor implements RpcProcessor<AddRaftNodeProcessor.R
     @Override
     public void handleRequest(RpcContext rpcCtx, Request request) {
         System.out.println("recv add raft node " + request.graphName);
-        server.startRaftGroup(request.groupId);
+        server.startRaftGroup(request.groupId, request.getPeersList());
         rpcCtx.sendResponse(new Response(0, request.graphName));
     }
 

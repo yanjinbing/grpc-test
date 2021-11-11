@@ -36,16 +36,16 @@ public class GrpcServer {
     // raft状态机
     private RaftParams raftParams;
 
-    private PeerId  serverId;
-    private  RpcServer rpcServer;
+    private PeerId serverId;
+    private RpcServer rpcServer;
     private Map<String, RaftGroup> raftGroups = new ConcurrentHashMap<>();
 
     private void start(int port) throws IOException {
         // 启动grpc服务
         grpcServer = ServerBuilder.forPort(port)
                 .addService(new HelloWorldImpl(this))
-                .maxInboundMessageSize(1024*1024*10)
-                .maxInboundMetadataSize(1024*1024*10)
+                .maxInboundMessageSize(1024 * 1024 * 10)
+                .maxInboundMetadataSize(1024 * 1024 * 10)
                 .build()
                 .start();
 
@@ -76,7 +76,7 @@ public class GrpcServer {
     /**
      * 创建raft rpc server
      */
-    private void createRaftRpcServer(String raftAddr){
+    private void createRaftRpcServer(String raftAddr) {
         serverId = JRaftUtils.getPeerId(raftParams.raftAddr);
         rpcServer = RaftRpcServerFactory.createRaftRpcServer(serverId.getEndpoint());
         // 注册增加Raft node消息
@@ -86,16 +86,18 @@ public class GrpcServer {
 
     /**
      * 创建raft分组
+     *
      * @param groupId
      */
-    public void startRaftGroup(String groupId) {
+    public void startRaftGroup(String groupId, String peersList) {
         if (raftGroups.containsKey(groupId))
             return;
         String raftPath = raftParams.dataPath + "/" + groupId;
         new File(raftPath).mkdirs();
 
-        startRaft(groupId, raftPath, raftParams.peersList);
+        startRaft(groupId, raftPath, peersList);
     }
+
     /**
      * 创建raft分组
      *
@@ -133,16 +135,18 @@ public class GrpcServer {
         Node raftNode = raftGroupService.start(false);
         stateMachine.setNode(raftNode);
         raftGroups.put(groupId, new RaftGroup(stateMachine, raftNode, raftGroupService));
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {raftNode.shutdown();}));
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            raftNode.shutdown();
+        }));
 
     }
 
 
     public PeerId getLeader(String groupId) throws Exception {
-        return  getRaftNode(groupId).getLeaderId();
+        return getRaftNode(groupId).getLeaderId();
     }
 
-    public boolean isLeader(String groupId)  {
+    public boolean isLeader(String groupId) {
         try {
             return getRaftNode(groupId).isLeader();
         } catch (Exception e) {
@@ -179,16 +183,16 @@ public class GrpcServer {
             ByteString value = request.getValue();
 
             //创建任务，发送给其他peer
-           String groupId = request.getGroupId();
+            String groupId = request.getGroupId();
             // 创建raft
-           this.server.startRaftGroup(groupId);
+        //    this.server.startRaftGroup(groupId);
 
 
-           if ( !server.isLeader(groupId)){
-               observer.onError(io.grpc.Status.ABORTED.asException());
-               observer.onCompleted();
-               return;
-           }
+            if (!server.isLeader(groupId)) {
+                observer.onError(io.grpc.Status.ABORTED.asException());
+                observer.onCompleted();
+                return;
+            }
             try {
                 // 提交raft 任务
                 putTask(groupId, request.getKey().toByteArray(), request.getValue().toByteArray(),
@@ -207,6 +211,7 @@ public class GrpcServer {
 
         /**
          * 查询Leader
+         *
          * @param request
          * @param observer
          */
@@ -222,7 +227,7 @@ public class GrpcServer {
                     observer.onNext(reply);
                 } else
                     observer.onError(io.grpc.Status.fromCodeValue(1).asException());
-            }catch (Exception e){
+            } catch (Exception e) {
                 observer.onError(io.grpc.Status.fromThrowable(e).asException());
             }
             observer.onCompleted();
@@ -232,16 +237,27 @@ public class GrpcServer {
                             io.grpc.stub.StreamObserver<AddPeerReply> observer) {
             String groupId = request.getGroupId();
             String address = request.getAddress();
+            String peersList = request.getPeers();
             try {
-                Node node = server.getRaftNode(groupId);
 
+                server.startRaftGroup(groupId, peersList);
                 RaftRpcClient client = new RaftRpcClient();
                 client.init(new RpcOptions());
                 AddRaftNodeProcessor.Request req = new AddRaftNodeProcessor.Request();
                 req.setGroupId(groupId);
-                AddRaftNodeProcessor.Response response =
-                        (AddRaftNodeProcessor.Response) client.addRaftNode(JRaftUtils.getEndPoint(address), req, null).get();
-                System.out.println(response.getErrorMsg());
+                client.addRaftNode(JRaftUtils.getEndPoint(address), req,
+                        new RaftRpcClient.ClosureAdapter<AddRaftNodeProcessor.Response>() {
+
+                            @Override
+                            public void run(Status status) {
+                                try {
+                                    System.out.println("add peer " + address);
+                                    server.getRaftNode(groupId).addPeer(JRaftUtils.getPeerId(address), null);
+                                } catch (Exception e) {
+                                    System.out.println(e.getMessage());
+                                }
+                            }
+                        });
 
             } catch (Exception e) {
                 e.printStackTrace();
@@ -253,7 +269,7 @@ public class GrpcServer {
         public void removePeer(RemovePeerRequest request, StreamObserver<RemovePeerReply> observer) {
             String groupId = request.getGroupId();
             String address = request.getAddress();
-            if ( !server.isLeader(groupId)){
+            if (!server.isLeader(groupId)) {
                 observer.onError(io.grpc.Status.PERMISSION_DENIED.asException());
                 observer.onCompleted();
                 return;
@@ -263,11 +279,11 @@ public class GrpcServer {
                 node.removePeer(JRaftUtils.getPeerId(address), new Closure() {
                     @Override
                     public void run(Status status) {
-                        if ( node.isLeader() )
+                        if (node.isLeader())
                             System.out.println(" 移除Peer " + status);
-                            node.listPeers().forEach((e)->{
-                                System.out.println(e);
-                            });
+                        node.listPeers().forEach((e) -> {
+                            System.out.println(e);
+                        });
 
                     }
                 });
@@ -278,8 +294,10 @@ public class GrpcServer {
             observer.onNext(RemovePeerReply.newBuilder().build());
             observer.onCompleted();
         }
+
         /**
          * 生成raft任务
+         *
          * @param groupId
          * @param key
          * @param value
@@ -302,30 +320,34 @@ public class GrpcServer {
         }
     }
 
-    class RaftGroup{
+    class RaftGroup {
         private MyStateMachine stateMachine;
         private Node raftNode;
         private RaftGroupService service;
-        public RaftGroup(MyStateMachine machine, Node node, RaftGroupService service){
+
+        public RaftGroup(MyStateMachine machine, Node node, RaftGroupService service) {
             this.stateMachine = machine;
             this.service = service;
             this.raftNode = node;
         }
+
         public boolean isLeader() {
             return stateMachine.isLeader();
         }
 
-        public Node getRaftNode(){
+        public Node getRaftNode() {
             return raftNode;
         }
 
     }
+
     static class RaftParams {
         public String dataPath;
         public String raftAddr;
         public String peersList;
         public String groupId;
-        public RaftParams(String dataPath, String raftAddr, String peersList, String groupId){
+
+        public RaftParams(String dataPath, String raftAddr, String peersList, String groupId) {
             this.dataPath = dataPath;
             this.raftAddr = raftAddr;
             this.peersList = peersList;

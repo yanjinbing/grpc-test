@@ -51,6 +51,7 @@ message BatchReply{
 message AddPeerRequest{
   string groupId = 1;
   string address = 2;
+  string peers = 3;
 }
 
 message AddPeerReply{

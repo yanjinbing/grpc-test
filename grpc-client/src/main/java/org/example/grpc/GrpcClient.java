@@ -153,12 +153,13 @@ public class GrpcClient {
                 counter.get(), counter.get() *1000/ (System.currentTimeMillis() - start[0])));
     }
 
-    public void addPeer(String groupId, String address) {
+    public void addPeer(String groupId, String address, String peers) {
         try {
             // 构建消息
             AddPeerRequest request = AddPeerRequest.newBuilder()
                     .setGroupId(groupId)
                     .setAddress(address)
+                    .setPeers(peers)
                     .build();
             Client client = getGrpcClient(groupId);
             // 发送消息
@@ -195,7 +196,12 @@ public class GrpcClient {
     public static void main(String[] args) throws InterruptedException {
         GrpcClient client = new GrpcClient();
         //client.batchTest(args);
-        client.addPeer("a1", "127.0.0.1:8082");
+        client.addPeer("aa1", "127.0.0.1:8082", "127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083");
+        client.addPeer("aa1", "127.0.0.1:8083", "127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083");
+        client.addPeer("aa2", "127.0.0.1:8083", "127.0.0.1:8081,127.0.0.1:8083,127.0.0.1:8084");
+        client.addPeer("aa2", "127.0.0.1:8084", "127.0.0.1:8081,127.0.0.1:8083,127.0.0.1:8084");
+      //  client.addPeer("aa3", "127.0.0.1:8085");
+      //  client.addPeer("aa3", "127.0.0.1:8086");
         //client.removePeer("a0", "127.0.0.1:8082");
     }
 }
