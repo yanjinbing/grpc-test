@@ -14,6 +14,9 @@ service HelloWorld {
   rpc SayHello (HelloRequest) returns (HelloReply) {}
 
   rpc BatchSayHello (BatchRequest) returns (BatchReply) {}
+
+  rpc AddPeer(AddPeerRequest) returns (AddPeerReply){}
+  rpc RemovePeer(RemovePeerRequest) returns (RemovePeerReply){}
 }
 
 // The request message containing the user's name.
@@ -42,5 +45,23 @@ message BatchRequest{
 }
 
 message BatchReply{
+
+}
+
+message AddPeerRequest{
+  string groupId = 1;
+  string address = 2;
+}
+
+message AddPeerReply{
+
+}
+
+message RemovePeerRequest{
+  string groupId = 1;
+  string address = 2;
+}
+
+message RemovePeerReply{
 
 }

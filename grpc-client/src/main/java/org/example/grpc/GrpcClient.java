@@ -153,6 +153,39 @@ public class GrpcClient {
                 counter.get(), counter.get() *1000/ (System.currentTimeMillis() - start[0])));
     }
 
+    public void addPeer(String groupId, String address) {
+        try {
+            // 构建消息
+            AddPeerRequest request = AddPeerRequest.newBuilder()
+                    .setGroupId(groupId)
+                    .setAddress(address)
+                    .build();
+            Client client = getGrpcClient(groupId);
+            // 发送消息
+            AddPeerReply response = client.stub.addPeer(request);
+        }catch (Throwable e){
+            System.out.println(e.getMessage());
+            throw  e;
+        }
+    }
+
+
+    public void removePeer(String groupId, String address) {
+        try {
+            // 构建消息
+            RemovePeerRequest request = RemovePeerRequest.newBuilder()
+                    .setGroupId(groupId)
+                    .setAddress(address)
+                    .build();
+            Client client = getGrpcClient(groupId);
+            // 发送消息
+            RemovePeerReply response = client.stub.removePeer(request);
+        }catch (Throwable e){
+            System.out.println(e.getMessage());
+            throw  e;
+        }
+    }
+
     class Client{
         public ManagedChannel channel = null;
         //创建方法存根
@@ -161,6 +194,8 @@ public class GrpcClient {
 
     public static void main(String[] args) throws InterruptedException {
         GrpcClient client = new GrpcClient();
-        client.batchTest(args);
+        //client.batchTest(args);
+        client.addPeer("a1", "127.0.0.1:8082");
+        //client.removePeer("a0", "127.0.0.1:8082");
     }
 }

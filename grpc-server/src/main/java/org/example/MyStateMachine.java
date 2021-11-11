@@ -2,6 +2,7 @@ package org.example;
 
 import com.alipay.sofa.jraft.Closure;
 import com.alipay.sofa.jraft.Iterator;
+import com.alipay.sofa.jraft.Node;
 import com.alipay.sofa.jraft.Status;
 import com.alipay.sofa.jraft.core.StateMachineAdapter;
 import com.alipay.sofa.jraft.error.RaftError;
@@ -30,8 +31,14 @@ public class MyStateMachine extends StateMachineAdapter {
     private static long startTime = System.currentTimeMillis();
     private static long recvData = 0;
     private String groupId;
-    public MyStateMachine(String groupId){
+    private Node node;
+
+    public MyStateMachine(String groupId) {
         this.groupId = groupId;
+    }
+
+    public void setNode(Node node){
+        this.node = node;
     }
 
     @Override
@@ -43,7 +50,6 @@ public class MyStateMachine extends StateMachineAdapter {
                 closure = (StoreClosure) iterator.done();
                 Operation op = closure.getOperation();
                 recvData += op.getValue().length;
-
                 // 本地数据
             } else {
                 // 远端数据
@@ -82,7 +88,6 @@ public class MyStateMachine extends StateMachineAdapter {
             }
             iterator.next();
         }
-
     }
 
     @Override
@@ -96,6 +101,9 @@ public class MyStateMachine extends StateMachineAdapter {
         this.leaderTerm.set(term);
         super.onLeaderStart(term);
         System.out.println(groupId + "  is leader");
+        node.listPeers().forEach((e)->{
+            System.out.println(e);
+        });
     }
 
     @Override
@@ -110,10 +118,10 @@ public class MyStateMachine extends StateMachineAdapter {
         String filePath = writer.getPath() + File.separator + "snapshot";
         try {
             FileUtils.writeStringToFile(new File(filePath), groupId + "snapshot", Charset.defaultCharset());
-            if (writer.addFile("snapshot")){
+            if (writer.addFile("snapshot")) {
                 System.out.println(groupId + " snapshot save");
                 done.run(Status.OK());
-            }else{
+            } else {
                 done.run(new Status(RaftError.EIO, "Fail to add file to writer"));
             }
         } catch (IOException e) {
@@ -138,5 +146,4 @@ public class MyStateMachine extends StateMachineAdapter {
         }
         return false;
     }
-
 }
