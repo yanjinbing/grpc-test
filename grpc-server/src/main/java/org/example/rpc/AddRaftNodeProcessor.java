@@ -67,7 +67,7 @@ public class AddRaftNodeProcessor implements RpcProcessor<AddRaftNodeProcessor.R
     }
     @Override
     public void handleRequest(RpcContext rpcCtx, Request request) {
-        System.out.println("recv add raft node " + request.graphName);
+        System.out.println("recv add raft node " + request.graphName + " peers " + request.getPeersList());
         server.startRaftGroup(request.groupId, request.getPeersList());
         rpcCtx.sendResponse(new Response(0, request.graphName));
     }

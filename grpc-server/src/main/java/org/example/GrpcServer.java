@@ -240,19 +240,21 @@ public class GrpcServer {
             String peersList = request.getPeers();
             try {
 
+                // 创建本地raft分组
                 server.startRaftGroup(groupId, peersList);
+
                 RaftRpcClient client = new RaftRpcClient();
                 client.init(new RpcOptions());
                 AddRaftNodeProcessor.Request req = new AddRaftNodeProcessor.Request();
                 req.setGroupId(groupId);
+                req.setPeersList(peersList);
                 client.addRaftNode(JRaftUtils.getEndPoint(address), req,
                         new RaftRpcClient.ClosureAdapter<AddRaftNodeProcessor.Response>() {
-
                             @Override
                             public void run(Status status) {
                                 try {
                                     System.out.println("add peer " + address);
-                                    server.getRaftNode(groupId).addPeer(JRaftUtils.getPeerId(address), null);
+                                //    server.getRaftNode(groupId).addPeer(JRaftUtils.getPeerId(address), null);
                                 } catch (Exception e) {
                                     System.out.println(e.getMessage());
                                 }

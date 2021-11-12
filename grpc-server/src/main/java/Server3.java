@@ -1,9 +1,11 @@
 import org.example.GrpcServer;
 
+import java.io.File;
 import java.io.IOException;
 
 public class Server3 {
     public static void main(String[] args) throws IOException, InterruptedException {
+        deleteDir(new File("d:/test/raft/3"));
         GrpcServer.main(new String[]{
                 "d:/test/raft/3",
                 "8093",
@@ -11,5 +13,13 @@ public class Server3 {
                 "127.0.0.1:8083",
                 "a3"
         });
+    }
+    private static boolean deleteDir(File dir) {
+        if (dir.isDirectory()) {
+            for(File file : dir.listFiles()){
+                deleteDir(file);
+            }
+        }
+        return dir.delete();
     }
 }
