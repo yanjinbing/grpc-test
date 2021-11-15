@@ -102,9 +102,22 @@ public class MyStateMachine extends StateMachineAdapter {
         super.onLeaderStart(term);
         System.out.println(groupId + "  is leader");
         node.listPeers().forEach((e)->{
-            System.out.print(" " + e);
+            System.out.print("list Peers " + e);
+
         });
+
+        node.listAlivePeers().forEach((e)->{
+            System.out.print("list alive Peers " + e);
+
+        });
+
+        node.listLearners().forEach((e)->{
+            System.out.print("list learners " + e);
+
+        });
+
         System.out.println();
+
     }
 
     @Override
