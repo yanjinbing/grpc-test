@@ -13,7 +13,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class GrpcClient {
+public class GrpcClientSingle {
     static String defaultAddr ;
     static String[][] PEERIDTOGRPC;
 
@@ -21,11 +21,10 @@ public class GrpcClient {
 
     static {
         if (isLocalHost) {
-            defaultAddr = "127.0.0.1:8091";
+            defaultAddr = "127.0.0.1:8092";
             PEERIDTOGRPC = new String[][]{
-                    {"127.0.0.1:8081", "127.0.0.1:8091"},
-                    {"127.0.0.1:8082", "127.0.0.1:8092"},
-                    {"127.0.0.1:8083", "127.0.0.1:8093"}
+                    {"127.0.0.1:8081", "127.0.0.1:8091"}
+
             };
         } else {
             defaultAddr = "10.81.116.79:8091";
@@ -39,7 +38,7 @@ public class GrpcClient {
 
     Map<String, String> peerIdToGrpc;
     ThreadLocal<Client> clients = new ThreadLocal<>();
-    public GrpcClient() {
+    public GrpcClientSingle() {
         peerIdToGrpc = new HashMap<>();
         for (String[] peers : PEERIDTOGRPC) {
             peerIdToGrpc.put(peers[0], peers[1]);
@@ -199,15 +198,8 @@ public class GrpcClient {
     }
 
     public static void main(String[] args) throws InterruptedException {
-        GrpcClient client = new GrpcClient();
-       // client.batchTest(args);
-
-        client.addPeer("aa1", "127.0.0.1:8082", "127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083");
-        //client.addPeer("aa1", "127.0.0.1:8083", "127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083");
-     //   client.addPeer("aa2", "127.0.0.1:8083", "127.0.0.1:8081,127.0.0.1:8083,127.0.0.1:8084");
-     //   client.addPeer("aa2", "127.0.0.1:8084", "127.0.0.1:8081,127.0.0.1:8083,127.0.0.1:8084");
-      //  client.addPeer("aa3", "127.0.0.1:8085");
-      //  client.addPeer("aa3", "127.0.0.1:8086");
-        //client.removePeer("a0", "127.0.0.1:8082");
+        GrpcClientSingle client = new GrpcClientSingle();
+        for(int i = 0; i<100; i++)
+            client.sendOne("a1", ByteString.copyFromUtf8("Hello" + i), ByteString.copyFromUtf8("World" + i));
     }
 }

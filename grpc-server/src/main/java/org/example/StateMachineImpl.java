@@ -5,6 +5,7 @@ import com.alipay.sofa.jraft.Iterator;
 import com.alipay.sofa.jraft.Node;
 import com.alipay.sofa.jraft.Status;
 import com.alipay.sofa.jraft.core.StateMachineAdapter;
+import com.alipay.sofa.jraft.entity.LeaderChangeContext;
 import com.alipay.sofa.jraft.error.RaftError;
 import com.alipay.sofa.jraft.error.RaftException;
 import com.alipay.sofa.jraft.storage.snapshot.SnapshotReader;
@@ -19,7 +20,7 @@ import java.io.ObjectInputStream;
 import java.nio.charset.Charset;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class MyStateMachine extends StateMachineAdapter {
+public class StateMachineImpl extends StateMachineAdapter {
     private final AtomicLong leaderTerm = new AtomicLong(-1);
 
     public boolean isLeader() {
@@ -33,7 +34,7 @@ public class MyStateMachine extends StateMachineAdapter {
     private String groupId;
     private Node node;
 
-    public MyStateMachine(String groupId) {
+    public StateMachineImpl(String groupId) {
         this.groupId = groupId;
     }
 
@@ -101,21 +102,21 @@ public class MyStateMachine extends StateMachineAdapter {
         this.leaderTerm.set(term);
         super.onLeaderStart(term);
         System.out.println(groupId + "  is leader");
+        System.out.println("listPeers");
         node.listPeers().forEach((e)->{
-            System.out.print("list Peers " + e);
+            System.out.print("\t" + e);
 
         });
-
+        System.out.println("\nlistAlivePeers");
         node.listAlivePeers().forEach((e)->{
-            System.out.print("list alive Peers " + e);
+            System.out.print("\t" + e);
 
         });
-
+        System.out.println("\nlistLearners");
         node.listLearners().forEach((e)->{
-            System.out.print("list learners " + e);
+            System.out.print("\t" + e);
 
         });
-
         System.out.println();
 
     }
@@ -159,5 +160,16 @@ public class MyStateMachine extends StateMachineAdapter {
             e.printStackTrace();
         }
         return false;
+    }
+
+    @Override
+    public void onStopFollowing(final LeaderChangeContext ctx){
+        System.out.println(groupId + " stop follower");
+    }
+
+
+    @Override
+    public void onStartFollowing(final LeaderChangeContext ctx){
+        System.out.println(groupId + " start follower");
     }
 }

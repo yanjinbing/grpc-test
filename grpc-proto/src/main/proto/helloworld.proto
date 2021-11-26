@@ -14,9 +14,9 @@ service HelloWorld {
   rpc SayHello (HelloRequest) returns (HelloReply) {}
 
   rpc BatchSayHello (BatchRequest) returns (BatchReply) {}
-
-  rpc AddPeer(AddPeerRequest) returns (AddPeerReply){}
-  rpc RemovePeer(RemovePeerRequest) returns (RemovePeerReply){}
+  rpc CreateRaft(CreateRaftRequest) returns (CreateRaftReply){}
+  rpc AddPeer(PeerRequest) returns (PeerReply){}
+  rpc RemovePeer(PeerRequest) returns (PeerReply){}
 }
 
 // The request message containing the user's name.
@@ -48,21 +48,21 @@ message BatchReply{
 
 }
 
-message AddPeerRequest{
+message CreateRaftRequest{
   string groupId = 1;
   string address = 2;
   string peers = 3;
 }
 
-message AddPeerReply{
+message CreateRaftReply{
 
 }
 
-message RemovePeerRequest{
+message PeerRequest{
   string groupId = 1;
   string address = 2;
 }
 
-message RemovePeerReply{
+message PeerReply{
 
 }
