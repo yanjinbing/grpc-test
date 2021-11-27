@@ -22,9 +22,11 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class StateMachineImpl extends StateMachineAdapter {
     private final AtomicLong leaderTerm = new AtomicLong(-1);
+
     public boolean isLeader() {
         return this.leaderTerm.get() > 0;
     }
+
     private String groupId;
     private Node node;
 
@@ -32,7 +34,7 @@ public class StateMachineImpl extends StateMachineAdapter {
         this.groupId = groupId;
     }
 
-    public void setNode(Node node){
+    public void setNode(Node node) {
         this.node = node;
     }
 
@@ -53,7 +55,7 @@ public class StateMachineImpl extends StateMachineAdapter {
                     input = new ObjectInputStream(new ByteArrayInputStream(iterator.getData().array()));
                     Operation op = (Operation) input.readObject();
                     System.out.println(groupId + " follower receive data " + op.getValue().length);
-                 } catch (IOException | ClassNotFoundException e) {
+                } catch (IOException | ClassNotFoundException e) {
                     e.printStackTrace();
                 } finally {
                     if (input != null) {
@@ -116,25 +118,26 @@ public class StateMachineImpl extends StateMachineAdapter {
             System.out.println("Leader is not supposed to load snapshot");
             return false;
         }
-        String filePath = reader.getPath() + File.separator + "snapshot";
+        System.out.println("onSnapshotLoad ");
+        reader.listFiles().forEach(f->{
+            System.out.println("\t " + f);
+        });
         try {
-            String value = FileUtils.readFileToString(new File(filePath), Charset.defaultCharset());
-            System.out.println(groupId + " snapshot load " + value);
-            return true;
+            FileUtils.forceDelete(new File(reader.getPath()));
         } catch (IOException e) {
             e.printStackTrace();
         }
-        return false;
+        return true;
     }
 
     @Override
-    public void onStopFollowing(final LeaderChangeContext ctx){
+    public void onStopFollowing(final LeaderChangeContext ctx) {
         System.out.println(groupId + " stop follower");
     }
 
 
     @Override
-    public void onStartFollowing(final LeaderChangeContext ctx){
+    public void onStartFollowing(final LeaderChangeContext ctx) {
         System.out.println(groupId + " start follower");
     }
 }

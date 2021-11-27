@@ -12,6 +12,7 @@ import com.alipay.sofa.jraft.option.RpcOptions;
 import com.alipay.sofa.jraft.rpc.RaftRpcServerFactory;
 import com.alipay.sofa.jraft.rpc.RpcServer;
 import com.alipay.sofa.jraft.storage.LogStorage;
+import com.alipay.sofa.jraft.storage.SnapshotStorage;
 import com.google.protobuf.ByteString;
 import io.grpc.Metadata;
 import io.grpc.Server;
@@ -145,15 +146,15 @@ public class GrpcServer {
 
 
         nodeOptions.setServiceFactory(new DefaultJRaftServiceFactory(){
-            /*
             @Override
             public SnapshotStorage createSnapshotStorage(final String uri, final RaftOptions raftOptions) {
                 return new SnapshotStorageImpl(uri, raftOptions);
-            }*/
+            }
+            /*
             @Override
             public LogStorage createLogStorage(final String uri, final RaftOptions raftOptions) {
                 return new LogStorageImpl(uri, raftOptions);
-            }
+            }*/
         });
         // 构建raft组并启动raft
         RaftGroupService raftGroupService = new RaftGroupService(groupId, serverId, nodeOptions, rpcServer, true);
