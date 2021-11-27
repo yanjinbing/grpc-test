@@ -22,15 +22,9 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class StateMachineImpl extends StateMachineAdapter {
     private final AtomicLong leaderTerm = new AtomicLong(-1);
-
     public boolean isLeader() {
         return this.leaderTerm.get() > 0;
     }
-
-
-    private final AtomicLong counter = new AtomicLong(-1);
-    private static long startTime = System.currentTimeMillis();
-    private static long recvData = 0;
     private String groupId;
     private Node node;
 
@@ -50,7 +44,7 @@ public class StateMachineImpl extends StateMachineAdapter {
             if (iterator.done() != null) {
                 closure = (StoreClosure) iterator.done();
                 Operation op = closure.getOperation();
-                recvData += op.getValue().length;
+                System.out.println(groupId + " leader receive data " + op.getValue().length);
                 // 本地数据
             } else {
                 // 远端数据
@@ -58,9 +52,8 @@ public class StateMachineImpl extends StateMachineAdapter {
                 try {
                     input = new ObjectInputStream(new ByteArrayInputStream(iterator.getData().array()));
                     Operation op = (Operation) input.readObject();
-                    recvData += op.getValue().length;
-
-                } catch (IOException | ClassNotFoundException e) {
+                    System.out.println(groupId + " follower receive data " + op.getValue().length);
+                 } catch (IOException | ClassNotFoundException e) {
                     e.printStackTrace();
                 } finally {
                     if (input != null) {
@@ -75,17 +68,6 @@ public class StateMachineImpl extends StateMachineAdapter {
             // 更新后，确保调用 done，返回应答给客户端。
             if (closure != null) {
                 closure.run(Status.OK());
-            }
-            long c = counter.incrementAndGet();
-            if (System.currentTimeMillis() - startTime > 1000 * 10) {
-                synchronized (counter) {
-                    if (System.currentTimeMillis() - startTime > 1000 * 10) {
-                        System.out.println(String.format(groupId + " receive data : %d, size is %d K",
-                                c, recvData / (System.currentTimeMillis() - startTime)));
-                        startTime = System.currentTimeMillis();
-                        recvData = 0;
-                    }
-                }
             }
             iterator.next();
         }
@@ -102,23 +84,6 @@ public class StateMachineImpl extends StateMachineAdapter {
         this.leaderTerm.set(term);
         super.onLeaderStart(term);
         System.out.println(groupId + "  is leader");
-        System.out.println("listPeers");
-        node.listPeers().forEach((e)->{
-            System.out.print("\t" + e);
-
-        });
-        System.out.println("\nlistAlivePeers");
-        node.listAlivePeers().forEach((e)->{
-            System.out.print("\t" + e);
-
-        });
-        System.out.println("\nlistLearners");
-        node.listLearners().forEach((e)->{
-            System.out.print("\t" + e);
-
-        });
-        System.out.println();
-
     }
 
     @Override

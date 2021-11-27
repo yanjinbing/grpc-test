@@ -133,10 +133,11 @@ public class GrpcServer {
 
 
         nodeOptions.setServiceFactory(new DefaultJRaftServiceFactory(){
+            /*
             @Override
             public SnapshotStorage createSnapshotStorage(final String uri, final RaftOptions raftOptions) {
                 return new SnapshotStorageImpl(uri, raftOptions);
-            }
+            }*/
             @Override
             public LogStorage createLogStorage(final String uri, final RaftOptions raftOptions) {
                 return new LogStorageImpl(uri, raftOptions);
@@ -159,26 +160,18 @@ public class GrpcServer {
         return raftNodes.get(groupId);
     }
 
-    public void addPeer(String groupId, String peer) throws Exception {
+    public void addPeer(String groupId, String peer, final Closure done) throws Exception {
+        System.out.println(groupId + " addPeer " + peer);
         Node node = getRaftNode(groupId);
         PeerId peerId = JRaftUtils.getPeerId(peer);
-        node.addPeer(peerId, new Closure(){
-            @Override
-            public void run(Status status) {
-                System.out.println("addPeer " + status);
-            }
-        });
+        node.addPeer(peerId, done);
     }
 
-    public void removePeer(String groupId, String peer) throws Exception {
+    public void removePeer(String groupId, String peer, final Closure done) throws Exception {
+        System.out.println(groupId + " removePeer " + peer);
         Node node = getRaftNode(groupId);
         PeerId peerId = JRaftUtils.getPeerId(peer);
-        node.removePeer(peerId, new Closure() {
-            @Override
-            public void run(Status status) {
-                System.out.println("addPeer " + status);
-            }
-        });
+        node.removePeer(peerId, done);
     }
 
     /**
@@ -188,6 +181,10 @@ public class GrpcServer {
         return getRaftNode(groupId).getLeaderId();
     }
 
+    public void setMode(String groupId, int mode) throws Exception {
+        Node node = getRaftNode(groupId);
+
+    }
     /**
      * 当前peer是否是leader
      */
@@ -232,6 +229,7 @@ public class GrpcServer {
                 return;
             }
             try {
+                System.out.println("Recv data " + groupId);
                 // 提交raft 任务
                 putTask(groupId, request.getKey().toByteArray(), request.getValue().toByteArray(),
                         new Closure() {
@@ -321,12 +319,20 @@ public class GrpcServer {
                 return;
             }
             try {
-                server.addPeer(groupId, address);
+                server.addPeer(groupId, address, new Closure() {
+                    @Override
+                    public void run(Status status) {
+                        System.out.println(groupId + " addPeer " + address + " " + status);
+                        observer.onNext(PeerReply.newBuilder().build());
+                        observer.onCompleted();
+                    }
+                });
             } catch (Exception e) {
                 e.printStackTrace();
+                observer.onNext(PeerReply.newBuilder().build());
+                observer.onCompleted();
+
             }
-            observer.onNext(PeerReply.newBuilder().build());
-            observer.onCompleted();
         }
         public void removePeer(PeerRequest request, StreamObserver<PeerReply> observer) {
             String groupId = request.getGroupId();
@@ -337,15 +343,30 @@ public class GrpcServer {
                 return;
             }
             try {
-                server.removePeer(groupId, address);
+                server.removePeer(groupId, address, new Closure() {
+                    @Override
+                    public void run(Status status) {
+                        System.out.println(groupId + " removePeer " + address + " " + status);
+                        observer.onNext(PeerReply.newBuilder().build());
+                        observer.onCompleted();
+                    }
+                });
 
             } catch (Exception e) {
                 e.printStackTrace();
+                observer.onNext(PeerReply.newBuilder().build());
+                observer.onCompleted();
             }
-            observer.onNext(PeerReply.newBuilder().build());
-            observer.onCompleted();
         }
 
+        public void setMode(SetModeRequest request,
+                            io.grpc.stub.StreamObserver<SetModeReply> responseObserver) {
+            String groupId = request.getGroupId();
+            int mode = request.getMode();
+
+
+
+        }
         /**
          * 生成raft任务
          *

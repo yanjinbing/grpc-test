@@ -22,20 +22,20 @@ public class SnapshotStorageImpl extends LocalSnapshotStorage {
     }
     @Override
     public boolean setFilterBeforeCopyRemote() {
-        System.out.println("MySnapshotStorage setFilterBeforeCopyRemote");
+        System.out.println("SnapshotStorage setFilterBeforeCopyRemote");
         return false;
     }
 
     @Override
     public SnapshotWriter create() {
-        System.out.println("MySnapshotStorage create");
+        System.out.println("SnapshotStorage create");
         return new MySnapshotWriter(this);
 
     }
 
     @Override
     public SnapshotReader open() {
-        System.out.println("MySnapshotStorage open");
+        System.out.println("SnapshotStorage open");
         if ( snapshotMeta != null)
             return new MySnapshotReader(this);
         return null;
@@ -43,7 +43,7 @@ public class SnapshotStorageImpl extends LocalSnapshotStorage {
 
     @Override
     public SnapshotReader copyFrom(String uri, SnapshotCopierOptions opts) {
-        System.out.println("MySnapshotStorage copyFrom");
+        System.out.println("SnapshotStorage copyFrom");
         if ( snapshotMeta != null)
             return new MySnapshotReader(this);
         return null;
@@ -51,19 +51,19 @@ public class SnapshotStorageImpl extends LocalSnapshotStorage {
 
     @Override
     public SnapshotCopier startToCopyFrom(String uri, SnapshotCopierOptions opts) {
-        System.out.println("MySnapshotStorage startToCopyFrom");
+        System.out.println("SnapshotStorage startToCopyFrom");
         return new MySnapshotCopier();
     }
 
     @Override
     public void setSnapshotThrottle(SnapshotThrottle snapshotThrottle) {
-        System.out.println("MySnapshotStorage setSnapshotThrottle");
+        System.out.println("SnapshotStorage setSnapshotThrottle");
 
     }
 
     @Override
     public boolean init(Void opts) {
-        System.out.println("MySnapshotStorage init");
+        System.out.println("SnapshotStorage init");
         return true;
     }
 

@@ -17,6 +17,8 @@ service HelloWorld {
   rpc CreateRaft(CreateRaftRequest) returns (CreateRaftReply){}
   rpc AddPeer(PeerRequest) returns (PeerReply){}
   rpc RemovePeer(PeerRequest) returns (PeerReply){}
+
+  rpc SetMode(SetModeRequest) returns (SetModeReply){}
 }
 
 // The request message containing the user's name.
@@ -64,5 +66,14 @@ message PeerRequest{
 }
 
 message PeerReply{
+
+}
+
+message SetModeRequest{
+  string groupId = 1;
+  int32 mode = 2;
+}
+
+message SetModeReply{
 
 }

@@ -7,8 +7,14 @@ import com.alipay.sofa.jraft.option.RaftOptions;
 import com.alipay.sofa.jraft.storage.impl.RocksDBLogStorage;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class LogStorageImpl extends RocksDBLogStorage {
+
+    private boolean closeLog = true;
+    private AtomicInteger logIndex = new AtomicInteger(1);
+    private LogEntry logEntry;
+
     public LogStorageImpl(String path, RaftOptions raftOptions) {
         super(path, raftOptions);
     }
@@ -19,8 +25,8 @@ public class LogStorageImpl extends RocksDBLogStorage {
      */
     @Override
     public long getFirstLogIndex() {
-        long l =  super.getFirstLogIndex();
-        System.out.println("getFirstLogIndex " + l);
+        long l =  closeLog ? logIndex.get() : super.getFirstLogIndex();
+        System.out.println("LogStorage getFirstLogIndex " + l);
         return l;
     }
 
@@ -28,8 +34,8 @@ public class LogStorageImpl extends RocksDBLogStorage {
      * Returns last log index in log.
      */
     public long getLastLogIndex() {
-        long l = super.getLastLogIndex();
-        System.out.println("getLastLogIndex " + l);
+        long l = closeLog ? logIndex.get()-1 : super.getLastLogIndex();
+        System.out.println("LogStorage getLastLogIndex " + l);
         return l;
     }
 
@@ -37,8 +43,9 @@ public class LogStorageImpl extends RocksDBLogStorage {
      * Get logEntry by index.
      */
     public LogEntry getEntry(final long index) {
-        System.out.println("getEntry " + index);
-        return super.getEntry(index);
+        System.out.println("LogStorage getEntry " + index);
+        LogEntry entry = closeLog ? logEntry : super.getEntry(index);
+        return entry;
     }
 
     /**
@@ -48,8 +55,8 @@ public class LogStorageImpl extends RocksDBLogStorage {
      */
     @Deprecated
     public long getTerm(final long index) {
-        long l = super.getTerm(index);
-        System.out.println("getTerm " + l);
+        long l = closeLog ? logEntry.getId().getTerm() : super.getTerm(index);
+        System.out.println("LogStorage getTerm " + l);
         return l;
     }
 
@@ -57,7 +64,12 @@ public class LogStorageImpl extends RocksDBLogStorage {
      * Append entries to log.
      */
     public boolean appendEntry(final LogEntry entry) {
-        System.out.println("appendEntry " + entry.getId());
+        System.out.println("LogStorage appendEntry " + entry.getId());
+        if ( closeLog ){
+            logEntry = entry;
+            return true;
+        }
+
         return super.appendEntry(entry);
     }
 
@@ -65,7 +77,13 @@ public class LogStorageImpl extends RocksDBLogStorage {
      * Append entries to log, return append success number.
      */
     public int appendEntries(final List<LogEntry> entries) {
-        return super.appendEntries(entries);
+        if (closeLog) {
+            logEntry = entries.get(entries.size() - 1);
+            logIndex.addAndGet(entries.size());
+        }
+        int num =  super.appendEntries(entries);
+        System.out.println("LogStorage appendEntries " + entries.size() + " " + num);
+        return num;
     }
 
     /**
@@ -73,8 +91,8 @@ public class LogStorageImpl extends RocksDBLogStorage {
      * be discarded.
      */
     public boolean truncatePrefix(final long firstIndexKept) {
-        System.out.println("truncatePrefix " + firstIndexKept);
-        return super.truncatePrefix(firstIndexKept);
+        System.out.println("LogStorage truncatePrefix " + firstIndexKept);
+        return closeLog ? true : super.truncatePrefix(firstIndexKept);
     }
 
     /**
@@ -82,8 +100,8 @@ public class LogStorageImpl extends RocksDBLogStorage {
      * will be discarded.
      */
     public boolean truncateSuffix(final long lastIndexKept) {
-        System.out.println("truncateSuffix " + lastIndexKept);
-        return super.truncateSuffix(lastIndexKept);
+        System.out.println("LogStorage truncateSuffix " + lastIndexKept);
+        return closeLog ? true : super.truncateSuffix(lastIndexKept);
     }
 
     /**
@@ -91,6 +109,7 @@ public class LogStorageImpl extends RocksDBLogStorage {
      * This function is called after installing snapshot from leader.
      */
     public boolean reset(final long nextLogIndex) {
-        return super.reset(nextLogIndex);
+        System.out.println("LogStorage reset " + nextLogIndex );
+        return closeLog ? true : super.reset(nextLogIndex);
     }
 }
