@@ -10,10 +10,10 @@ import java.io.Serializable;
  * 增加新的Raft Node
 
  */
-public class AddRaftNodeProcessor implements RpcProcessor<AddRaftNodeProcessor.Request> ,Serializable
+public class RaftNodeProcessor implements RpcProcessor<RaftNodeProcessor.Request> ,Serializable
 {
     private GrpcServer server;
-    public AddRaftNodeProcessor(GrpcServer server){
+    public RaftNodeProcessor(GrpcServer server){
         this.server = server;
     }
 
@@ -34,8 +34,11 @@ public class AddRaftNodeProcessor implements RpcProcessor<AddRaftNodeProcessor.R
             this.groupId = groupId;
         }
 
+        public void setOp(int op) { this.op = op;}
+        public int getOp(){ return op;}
         String graphName;
         String groupId;
+        int op;
 
         public String getPeersList() {
             return peersList;
@@ -67,13 +70,13 @@ public class AddRaftNodeProcessor implements RpcProcessor<AddRaftNodeProcessor.R
     }
     @Override
     public void handleRequest(RpcContext rpcCtx, Request request) {
-        System.out.println("recv add raft node " + request.graphName + " peers " + request.getPeersList());
-        server.startRaftGroup(request.groupId, request.getPeersList());
+        System.out.println("recv add raft node " + request.groupId + " peers " + request.getPeersList());
+        server.startRaftNode(request.groupId, request.getPeersList());
         rpcCtx.sendResponse(new Response(0, request.graphName));
     }
 
     @Override
     public String interest() {
-        return AddRaftNodeProcessor.Request.class.getName();
+        return RaftNodeProcessor.Request.class.getName();
     }
 }

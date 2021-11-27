@@ -12,7 +12,6 @@ import com.alipay.sofa.jraft.option.RpcOptions;
 import com.alipay.sofa.jraft.rpc.RaftRpcServerFactory;
 import com.alipay.sofa.jraft.rpc.RpcServer;
 import com.alipay.sofa.jraft.storage.LogStorage;
-import com.alipay.sofa.jraft.storage.SnapshotStorage;
 import com.google.protobuf.ByteString;
 import io.grpc.Metadata;
 import io.grpc.Server;
@@ -20,7 +19,7 @@ import io.grpc.ServerBuilder;
 
 import io.grpc.stub.StreamObserver;
 import org.example.grpc.*;
-import org.example.rpc.AddRaftNodeProcessor;
+import org.example.rpc.RaftNodeProcessor;
 import org.example.rpc.RaftRpcClient;
 
 import java.io.ByteArrayOutputStream;
@@ -81,7 +80,7 @@ public class GrpcServer {
         serverId = JRaftUtils.getPeerId(raftParams.raftAddr);
         rpcServer = RaftRpcServerFactory.createRaftRpcServer(serverId.getEndpoint());
         // 注册增加Raft node消息
-        rpcServer.registerProcessor(new AddRaftNodeProcessor(this));
+        rpcServer.registerProcessor(new RaftNodeProcessor(this));
         rpcServer.init(null);
     }
 
@@ -90,13 +89,26 @@ public class GrpcServer {
      *
      * @param groupId
      */
-    public void startRaftGroup(String groupId, String peersList) {
+    public void startRaftNode(String groupId, String peersList) {
         if (raftNodes.containsKey(groupId))
             return;
         String raftPath = raftParams.dataPath + "/" + groupId;
         new File(raftPath).mkdirs();
 
         startRaft(groupId, raftPath, peersList);
+    }
+
+    /**
+     * 创建raft分组
+     *
+     * @param groupId
+     */
+    public void stopRaftNode(String groupId) {
+        if (!raftNodes.containsKey(groupId))
+            return;
+        Node node = raftNodes.remove(groupId);
+        node.shutdown();
+
     }
 
     /**
@@ -276,38 +288,57 @@ public class GrpcServer {
         /**
          * 新增raft分组
          */
-        public void createRaft(CreateRaftRequest request,
-                            io.grpc.stub.StreamObserver<CreateRaftReply> observer) {
+        public void startRaftNode(RaftNodeRequest request,
+                                  io.grpc.stub.StreamObserver<RaftNodeReply> observer) {
             String groupId = request.getGroupId();
-            String address = request.getAddress();
             String peersList = request.getPeers();
             try {
                 // 创建本地raft分组
-                server.startRaftGroup(groupId, peersList);
-                RaftRpcClient client = new RaftRpcClient();
-                client.init(new RpcOptions());
-                AddRaftNodeProcessor.Request req = new AddRaftNodeProcessor.Request();
+                server.startRaftNode(groupId, peersList);
+                RaftNodeProcessor.Request req = new RaftNodeProcessor.Request();
                 req.setGroupId(groupId);
                 req.setPeersList(peersList);
-                client.addRaftNode(JRaftUtils.getEndPoint(address), req,
-                        new RaftRpcClient.ClosureAdapter<AddRaftNodeProcessor.Response>() {
-                            @Override
-                            public void run(Status status) {
-                                try {
-                                    System.out.println("add peer " + address);
-                                //    server.getRaftNode(groupId).addPeer(JRaftUtils.getPeerId(address), null);
-                                } catch (Exception e) {
-                                    System.out.println(e.getMessage());
+                RaftRpcClient client = new RaftRpcClient();
+                client.init(new RpcOptions());
+                for (String address : peersList.split(",")) {
+                    client.addRaftNode(JRaftUtils.getEndPoint(address), req,
+                            new RaftRpcClient.ClosureAdapter<RaftNodeProcessor.Response>() {
+                                @Override
+                                public void run(Status status) {
+                                    try {
+                                        System.out.println("Start raft node " + address);
+                                        //    server.getRaftNode(groupId).addPeer(JRaftUtils.getPeerId(address), null);
+                                    } catch (Exception e) {
+                                        System.out.println(e.getMessage());
+                                    }
                                 }
-                            }
-                        });
+                            });
+                }
 
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            observer.onNext(CreateRaftReply.newBuilder().build());
+            observer.onNext(RaftNodeReply.newBuilder().build());
             observer.onCompleted();
         }
+
+        /**
+         * 新增raft分组
+         */
+        public void stopRaftNode(RaftNodeRequest request,
+                                  io.grpc.stub.StreamObserver<RaftNodeReply> observer) {
+            String groupId = request.getGroupId();
+            try {
+                // 创建本地raft分组
+                server.stopRaftNode(groupId);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            observer.onNext(RaftNodeReply.newBuilder().build());
+            observer.onCompleted();
+        }
+
+
 
         public void addPeer(PeerRequest request,
                                io.grpc.stub.StreamObserver<PeerReply> observer) {

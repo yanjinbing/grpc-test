@@ -13,8 +13,8 @@ service HelloWorld {
   // Sends a greeting
   rpc SayHello (HelloRequest) returns (HelloReply) {}
 
-  rpc BatchSayHello (BatchRequest) returns (BatchReply) {}
-  rpc CreateRaft(CreateRaftRequest) returns (CreateRaftReply){}
+  rpc StartRaftNode(RaftNodeRequest) returns (RaftNodeReply){}
+  rpc StopRaftNode(RaftNodeRequest) returns (RaftNodeReply){}
   rpc AddPeer(PeerRequest) returns (PeerReply){}
   rpc RemovePeer(PeerRequest) returns (PeerReply){}
 
@@ -50,13 +50,12 @@ message BatchReply{
 
 }
 
-message CreateRaftRequest{
+message RaftNodeRequest{
   string groupId = 1;
-  string address = 2;
   string peers = 3;
 }
 
-message CreateRaftReply{
+message RaftNodeReply{
 
 }
 

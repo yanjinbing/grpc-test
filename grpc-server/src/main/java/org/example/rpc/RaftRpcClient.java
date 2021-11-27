@@ -5,7 +5,6 @@ import com.alipay.sofa.jraft.Status;
 import com.alipay.sofa.jraft.error.InvokeTimeoutException;
 import com.alipay.sofa.jraft.error.RaftError;
 import com.alipay.sofa.jraft.error.RemotingException;
-import com.alipay.sofa.jraft.option.CliOptions;
 import com.alipay.sofa.jraft.option.RpcOptions;
 import com.alipay.sofa.jraft.rpc.*;
 import com.alipay.sofa.jraft.rpc.RpcClient;
@@ -46,8 +45,8 @@ public class RaftRpcClient extends AbstractClientService {
     }
 
 
-    public <T> Future<T> addRaftNode(final Endpoint endpoint, final AddRaftNodeProcessor.Request request,
-                                     final ClosureAdapter<AddRaftNodeProcessor.Response> done) {
+    public <T> Future<T> addRaftNode(final Endpoint endpoint, final RaftNodeProcessor.Request request,
+                                     final ClosureAdapter<RaftNodeProcessor.Response> done) {
         return (Future<T>) invokeWithDone(endpoint, request, done, this.cliOptions.getRpcDefaultTimeout(), null);
     }
 
