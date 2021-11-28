@@ -146,7 +146,7 @@ public class GrpcServer {
 
 
         nodeOptions.setServiceFactory(new DefaultJRaftServiceFactory(){
-            @Override
+             @Override
             public SnapshotStorage createSnapshotStorage(final String uri, final RaftOptions raftOptions) {
                 return new SnapshotStorageImpl(uri, raftOptions);
             }

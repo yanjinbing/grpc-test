@@ -41,18 +41,6 @@ public class SnapshotStorageImpl extends LocalSnapshotStorage {
     @Override
     public SnapshotReader open() {
         System.out.println("SnapshotStorage open");
-        SnapshotWriter writer = create();
-        // 延后生成快照文件
-        String filePath = writer.getPath() + File.separator + "snapshot2";
-        try {
-            FileUtils.writeStringToFile(new File(filePath), "snapshot2", Charset.defaultCharset());
-            writer.addFile("snapshot2");
-
-            writer.close(true);
-            writer.shutdown();
-        }catch (Exception e){e.printStackTrace();}
-
-
         SnapshotReader reader = super.open();
         return reader != null ?
                 new SnapshotReaderImpl(null, null, null, null, null)
@@ -96,6 +84,7 @@ public class SnapshotStorageImpl extends LocalSnapshotStorage {
 
         private SnapshotReader reader;
         private SnapshotWriter writer;
+        private RaftOutter.SnapshotMeta meta;
         public SnapshotReaderImpl(LocalSnapshotStorage snapshotStorage, SnapshotThrottle snapshotThrottle, Endpoint addr, RaftOptions raftOptions, String path) {
             super(snapshotStorage, snapshotThrottle, addr, raftOptions, path);
         }
@@ -113,12 +102,28 @@ public class SnapshotStorageImpl extends LocalSnapshotStorage {
         @Override
         public RaftOutter.SnapshotMeta load() {
             System.out.println("SnapshotReader load");
-            return reader.load();
+            meta = reader.load();
+           // RaftOutter.SnapshotMeta newMeta = RaftOutter.SnapshotMeta.newBuilder(meta)
+
+
+            return meta;
         }
 
         @Override
         public String generateURIForCopy() {
+            // 延后生成快照文件
+/*
+            String filePath = writer.getPath() + File.separator + "snapshot2";
+            try {
+                FileUtils.writeStringToFile(new File(filePath), "snapshot2", Charset.defaultCharset());
+                writer.saveMeta(meta);
+                writer.addFile("snapshot2");
+                writer.close(true);
 
+            }catch (Exception e){e.printStackTrace();}
+
+            reader.init(null);
+  */
             String uri =  reader.generateURIForCopy();
             System.out.println("SnapshotReader generateURIForCopy " + uri);
             return uri;
