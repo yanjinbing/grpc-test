@@ -18,6 +18,7 @@ service HelloWorld {
   rpc AddPeer(PeerRequest) returns (PeerReply){}
   rpc RemovePeer(PeerRequest) returns (PeerReply){}
 
+  // 设置批量入库模式
   rpc SetMode(SetModeRequest) returns (SetModeReply){}
 }
 
@@ -76,3 +77,8 @@ message SetModeRequest{
 message SetModeReply{
 
 }
+
+enum WorkMode {
+  NORMAL = 0;
+  BATCH_LOADING = 1;
+};

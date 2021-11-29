@@ -1,31 +1,47 @@
 package org.example;
 
-import com.alipay.sofa.jraft.Lifecycle;
 import com.alipay.sofa.jraft.entity.LogEntry;
-import com.alipay.sofa.jraft.option.LogStorageOptions;
 import com.alipay.sofa.jraft.option.RaftOptions;
 import com.alipay.sofa.jraft.storage.impl.RocksDBLogStorage;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class LogStorageImpl extends RocksDBLogStorage {
 
-    private boolean closeLog = true;
-    private AtomicInteger logIndex = new AtomicInteger(1);
+    private boolean closeLog = false;
+    private AtomicLong firstLogIndex = new AtomicLong(1);
+    private AtomicLong lastLogIndex = new AtomicLong(0);
     private LogEntry logEntry;
 
     public LogStorageImpl(String path, RaftOptions raftOptions) {
         super(path, raftOptions);
     }
 
+    /**
+     * 设置是否关闭日志存储. 如何处理多线程问题呢？怎么处理调用该方法之前发生的日志写入呢
+     */
+    public void setLogMode(boolean closeLog){
+        System.out.println("Raft log mode " + closeLog);
+        if ( closeLog != this.closeLog){
+            if ( closeLog ){
+                firstLogIndex.set(getFirstLogIndex());
+                lastLogIndex.set(getLastLogIndex());
+            }else{
+                super.truncatePrefix(firstLogIndex.get());
+            }
+        }
+        this.closeLog = closeLog;
+
+    }
 
     /**
      * Returns first log index in log.
      */
     @Override
     public long getFirstLogIndex() {
-        long l =  closeLog ? logIndex.get() : super.getFirstLogIndex();
+        long l =  closeLog ? firstLogIndex.get() : super.getFirstLogIndex();
         System.out.println("LogStorage getFirstLogIndex " + l);
         return l;
     }
@@ -34,7 +50,7 @@ public class LogStorageImpl extends RocksDBLogStorage {
      * Returns last log index in log.
      */
     public long getLastLogIndex() {
-        long l = closeLog ? logIndex.get()-1 : super.getLastLogIndex();
+        long l = closeLog ? lastLogIndex.get()-1 : super.getLastLogIndex();
         System.out.println("LogStorage getLastLogIndex " + l);
         return l;
     }
@@ -67,8 +83,11 @@ public class LogStorageImpl extends RocksDBLogStorage {
         System.out.println("LogStorage appendEntry " + entry.getId());
         if ( closeLog ){
             logEntry = entry;
+            firstLogIndex.set(entry.getId().getIndex());
             return true;
         }
+
+        this.firstLogIndex.set(entry.getId().getIndex());
 
         return super.appendEntry(entry);
     }
@@ -79,10 +98,12 @@ public class LogStorageImpl extends RocksDBLogStorage {
     public int appendEntries(final List<LogEntry> entries) {
         if (closeLog) {
             logEntry = entries.get(entries.size() - 1);
-            logIndex.addAndGet(entries.size());
+            firstLogIndex.set(logEntry.getId().getIndex());
+            System.out.println(Thread.currentThread().getId() + " LogStorage appendEntries " + entries.size());
+            return entries.size();
         }
         int num =  super.appendEntries(entries);
-        System.out.println("LogStorage appendEntries " + entries.size() + " " + num);
+        System.out.println(Thread.currentThread().getId() + " LogStorage appendEntries " + entries.size() + " " + num);
         return num;
     }
 
@@ -91,6 +112,7 @@ public class LogStorageImpl extends RocksDBLogStorage {
      * be discarded.
      */
     public boolean truncatePrefix(final long firstIndexKept) {
+        firstLogIndex.set(firstIndexKept);
         System.out.println("LogStorage truncatePrefix " + firstIndexKept);
         return closeLog ? true : super.truncatePrefix(firstIndexKept);
     }

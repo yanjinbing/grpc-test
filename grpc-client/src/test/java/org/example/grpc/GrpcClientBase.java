@@ -107,4 +107,23 @@ public class GrpcClientBase {
         HelloWorldGrpc.HelloWorldBlockingStub stub = getStub(address);
         stub.stopRaftNode(request);
     }
+
+    /**
+     * 设置工作模式，批量入库并且单副本的情况下关闭raft日志
+     */
+    public void setMode(String address, String groupId, int mode) {
+        SetModeRequest request = SetModeRequest.newBuilder()
+                .setGroupId(groupId)
+                .setMode(mode)
+                .build();
+        getStub(address).setMode(request);
+    }
+
+    public void setBatchMode(String address, String groupId) {
+        setMode(address, groupId, WorkMode.BATCH_LOADING_VALUE);
+    }
+
+    public void setNormalMode(String address, String groupId) {
+        setMode(address, groupId, WorkMode.NORMAL_VALUE);
+    }
 }

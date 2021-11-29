@@ -30,6 +30,7 @@ import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -44,6 +45,8 @@ public class GrpcServer {
     private PeerId serverId;
     private RpcServer rpcServer;
     private Map<String, Node> raftNodes = new ConcurrentHashMap<>();
+
+    private LogStorageImpl logStorage;
 
     /**
      * 启动grpc服务
@@ -146,15 +149,17 @@ public class GrpcServer {
 
 
         nodeOptions.setServiceFactory(new DefaultJRaftServiceFactory(){
-             @Override
+
+            @Override
             public SnapshotStorage createSnapshotStorage(final String uri, final RaftOptions raftOptions) {
                 return new SnapshotStorageImpl(uri, raftOptions);
             }
-            /*
+
             @Override
             public LogStorage createLogStorage(final String uri, final RaftOptions raftOptions) {
-                return new LogStorageImpl(uri, raftOptions);
-            }*/
+                logStorage = new LogStorageImpl(uri, raftOptions);
+                return logStorage;
+            }
         });
         // 构建raft组并启动raft
         RaftGroupService raftGroupService = new RaftGroupService(groupId, serverId, nodeOptions, rpcServer, true);
@@ -188,15 +193,30 @@ public class GrpcServer {
     }
 
     /**
+     * 是否开启raft log日志
+     */
+    public boolean setRaftLogMode(String groupId, boolean enable) throws Exception {
+        // 检查peer数量，只有单副本才能关闭log
+        if (enable || getPeers(groupId).size() == 1) {
+            Node node = getRaftNode(groupId);
+            logStorage.setLogMode(enable);
+        }
+        return false;
+    }
+
+
+    /**
      * 获取Leader
      */
     public PeerId getLeader(String groupId) throws Exception {
         return getRaftNode(groupId).getLeaderId();
     }
 
-    public void setMode(String groupId, int mode) throws Exception {
-        Node node = getRaftNode(groupId);
 
+
+    public List<PeerId> getPeers(String groupId) throws Exception {
+        Node node = getRaftNode(groupId);
+        return node.listPeers();
     }
     /**
      * 当前peer是否是leader
@@ -392,12 +412,16 @@ public class GrpcServer {
         }
 
         public void setMode(SetModeRequest request,
-                            io.grpc.stub.StreamObserver<SetModeReply> responseObserver) {
+                            io.grpc.stub.StreamObserver<SetModeReply> observer) {
             String groupId = request.getGroupId();
             int mode = request.getMode();
-
-
-
+            try {
+                server.setRaftLogMode(groupId, mode == 1);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            observer.onNext(SetModeReply.newBuilder().build());
+            observer.onCompleted();
         }
         /**
          * 生成raft任务

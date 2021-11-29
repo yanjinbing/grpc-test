@@ -3,6 +3,8 @@ package org.example.grpc;
 import com.google.protobuf.ByteString;
 import org.junit.Test;
 
+import java.util.concurrent.*;
+
 public class GrpcTest extends GrpcClientBase{
     String[] a1 = {"127.0.0.1:8091","127.0.0.1:8081"};
     String[] a2 = {"127.0.0.1:8092","127.0.0.1:8082"};
@@ -41,9 +43,29 @@ public class GrpcTest extends GrpcClientBase{
     @Test
     public void testSendOne(){
         String groupId = "a1";
-        getLeader(a1[0], groupId);
+        setNormalMode(a1[0], groupId);
         sendOne(a1[0],groupId,
-                ByteString.copyFromUtf8("Hello"), ByteString.copyFromUtf8("Word"));
+                ByteString.copyFromUtf8("Hello"), ByteString.copyFromUtf8("Hello raft"));
     }
 
+    @Test
+    public void testBatchPut() throws InterruptedException {
+        String groupId = "a1";
+        setBatchMode(a1[0], groupId);
+
+        ExecutorService executor = new ThreadPoolExecutor(10, 10,
+                0L, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<Runnable>(100));
+        for(int i = 0; i<100; i++) {
+            int finalI = i;
+            executor.execute(() -> {
+                sendOne(a1[0], groupId,
+                        ByteString.copyFromUtf8("batch" + finalI), ByteString.copyFromUtf8("Hello raft"));
+
+            });
+            System.out.println(" " + i);
+        }
+        executor.shutdown();
+        executor.awaitTermination(1000, TimeUnit.SECONDS);
+    }
 }
