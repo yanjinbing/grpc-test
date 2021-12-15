@@ -68,4 +68,15 @@ public class GrpcTest extends GrpcClientBase{
         executor.shutdown();
         executor.awaitTermination(1000, TimeUnit.SECONDS);
     }
+
+    @Test
+    public void testScan(){
+        scan(a1[0], "a1");
+
+        try {
+            Thread.sleep(100000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
 }

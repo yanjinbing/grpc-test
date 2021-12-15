@@ -3,7 +3,7 @@ package org.example.grpc;
 import com.google.protobuf.ByteString;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
-import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
 
 public class GrpcClientBase {
 
@@ -12,6 +12,12 @@ public class GrpcClientBase {
         HelloWorldGrpc.HelloWorldBlockingStub stub = HelloWorldGrpc.newBlockingStub(channel);
         stub.withMaxInboundMessageSize(1024 * 1024 * 10);
         stub.withMaxOutboundMessageSize(1024 * 1024 * 10);
+        return stub;
+    }
+
+    public HelloWorldGrpc.HelloWorldStub getStreamStub(String address){
+        ManagedChannel channel = ManagedChannelBuilder.forTarget(address).usePlaintext().build();
+        HelloWorldGrpc.HelloWorldStub stub = HelloWorldGrpc.newStub(channel);
         return stub;
     }
 
@@ -125,5 +131,32 @@ public class GrpcClientBase {
 
     public void setNormalMode(String address, String groupId) {
         setMode(address, groupId, WorkMode.NORMAL_VALUE);
+    }
+
+    public void scan(String address, String id){
+        ScanRequest request = ScanRequest.newBuilder().setId(id).build();
+        StreamObserver<ScanRequest> requestStream = getStreamStub(address).scan(new StreamObserver<ScanResponse>() {
+            @Override
+            public void onNext(ScanResponse value) {
+                System.out.println(value.getData().toStringUtf8());
+                try {
+                    Thread.sleep(10000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            @Override
+            public void onError(Throwable t) {
+
+            }
+
+            @Override
+            public void onCompleted() {
+
+            }
+        });
+        requestStream.onNext(request);
+        requestStream.onCompleted();
     }
 }

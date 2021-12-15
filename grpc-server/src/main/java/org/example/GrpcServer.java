@@ -169,7 +169,8 @@ public class GrpcServer {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             raftNode.shutdown();
         }));
-
+    //    NodeOptions ops = raftNode.getOptions();
+        System.out.println("OK");
 
     }
     public Node getRaftNode(String groupId) throws Exception {
@@ -197,7 +198,7 @@ public class GrpcServer {
      */
     public boolean setRaftLogMode(String groupId, boolean enable) throws Exception {
         // 检查peer数量，只有单副本才能关闭log
-        if (enable || getPeers(groupId).size() == 1) {
+        if (!enable || getPeers(groupId).size() == 1) {
             Node node = getRaftNode(groupId);
             logStorage.setLogMode(enable);
         }
@@ -253,7 +254,7 @@ public class GrpcServer {
             ByteString key = request.getKey();
             ByteString value = request.getValue();
 
-            //创建任务，发送给其他peer
+                //创建任务，发送给其他peer
             String groupId = request.getGroupId();
 
             if (!server.isLeader(groupId)) {
@@ -423,6 +424,46 @@ public class GrpcServer {
             observer.onNext(SetModeReply.newBuilder().build());
             observer.onCompleted();
         }
+
+        /**
+         * 流式传输测试
+         *
+         * @return
+         */
+        public io.grpc.stub.StreamObserver<ScanRequest> scan(
+                io.grpc.stub.StreamObserver<ScanResponse> response) {
+            byte[] buf = new byte[1024*1024];
+            buf[1024*1024-1] = 0;
+            //buf[0] = 0;
+
+            return new StreamObserver<ScanRequest>() {
+                int count = 0;
+                @Override
+                public void onNext(ScanRequest request) {
+                    String id = request.getId();
+                    for(int i = 0; i<10000; i++) {
+                        buf[i] = 10;
+                        ByteString b = ByteString.copyFrom(buf);
+                        response.onNext(ScanResponse.newBuilder()
+                                .setId(id)
+                                .setData(ByteString.copyFromUtf8(id + " - " + count++))
+                                .build());
+
+                        System.out.println("Send " + id + " - " + count);
+                    }
+                }
+
+                @Override
+                public void onError(Throwable t) {
+                    t.printStackTrace();
+                }
+
+                @Override
+                public void onCompleted() {
+                    System.out.println("onCompleted");
+                }
+            };
+        }
         /**
          * 生成raft任务
          *
@@ -446,6 +487,8 @@ public class GrpcServer {
             task.setDone(new StoreClosure(op, done));
             this.server.getRaftNode(groupId).apply(task);
         }
+
+
     }
 
     static class RaftParams {
