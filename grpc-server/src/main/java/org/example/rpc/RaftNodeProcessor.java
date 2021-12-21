@@ -3,6 +3,7 @@ package org.example.rpc;
 import com.alipay.sofa.jraft.rpc.RpcContext;
 import com.alipay.sofa.jraft.rpc.RpcProcessor;
 import org.example.GrpcServer;
+import org.example.RaftEngine;
 
 import java.io.Serializable;
 
@@ -12,8 +13,8 @@ import java.io.Serializable;
  */
 public class RaftNodeProcessor implements RpcProcessor<RaftNodeProcessor.Request> ,Serializable
 {
-    private GrpcServer server;
-    public RaftNodeProcessor(GrpcServer server){
+    private RaftEngine server;
+    public RaftNodeProcessor(RaftEngine server){
         this.server = server;
     }
 

@@ -10,13 +10,15 @@ public class Server2 {
                 "d:/test/raft/2",
                 "8092",
                 "127.0.0.1:8082",
-                "127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083",
-                "a1"
+                "127.0.0.1:8082",
+                //"127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083",
+                "a2"
         });
     }
+
     private static boolean deleteDir(File dir) {
         if (dir.isDirectory()) {
-            for(File file : dir.listFiles()){
+            for (File file : dir.listFiles()) {
                 deleteDir(file);
             }
         }
