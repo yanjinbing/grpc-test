@@ -12,7 +12,7 @@ public class Server3 {
                 "127.0.0.1:8083",
                 "127.0.0.1:8083",
                 //"127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083",
-                "a2"
+                ""
         });
     }
     private static boolean deleteDir(File dir) {

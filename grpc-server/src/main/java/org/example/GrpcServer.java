@@ -12,6 +12,7 @@ import io.grpc.Metadata;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
+import org.apache.commons.lang.StringUtils;
 import org.example.grpc.*;
 import org.example.rpc.RaftNodeProcessor;
 import org.example.rpc.RaftRpcClient;
@@ -52,7 +53,8 @@ public class GrpcServer {
             }
         });
         raftEngine.createRaftRpcServer(raftParams.raftAddr);
-        raftEngine.startRaft(raftParams.groupId, raftParams.dataPath, raftParams.peersList);
+        if (StringUtils.isNotBlank(raftParams.groupId))
+            raftEngine.startRaft(raftParams.groupId, raftParams.dataPath, raftParams.peersList);
     }
 
     private void stop() {
@@ -240,6 +242,33 @@ public class GrpcServer {
                 e.printStackTrace();
                 observer.onNext(PeerReply.newBuilder().build());
                 observer.onCompleted();
+            }
+        }
+        /**
+         */
+        public void changePeers(PeerRequest request,
+                                StreamObserver<PeerReply> observer) {
+            String groupId = request.getGroupId();
+            String address = request.getAddress();
+            if (!engine.isLeader(groupId)) {
+                observer.onError(io.grpc.Status.PERMISSION_DENIED.asException());
+                observer.onCompleted();
+                return;
+            }
+            try {
+                engine.changePeers(groupId, request.getAddress(), request.getLearner(), new Closure() {
+                    @Override
+                    public void run(Status status) {
+                        System.out.println(groupId + " changePeers " + address + " " + status);
+                        observer.onNext(PeerReply.newBuilder().build());
+                        observer.onCompleted();
+                    }
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
+                observer.onNext(PeerReply.newBuilder().build());
+                observer.onCompleted();
+
             }
         }
 

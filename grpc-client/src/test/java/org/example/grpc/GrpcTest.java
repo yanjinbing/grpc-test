@@ -27,23 +27,29 @@ public class GrpcTest extends GrpcClientBase{
     @Test
     public void testAddPeer(){
         String groupId = "a1";
-        addPeer(a1[0],groupId, a2[1]);
-        addPeer(a1[0],groupId, a3[1]);
-
+        String peerList = a1[1] + ";" + a2[1] + ";" + a3[1];
+       // addPeer(a1[0],groupId, a2[1]);
+       // addPeer(a1[0],groupId, a3[1]);
+        changePeers(a1[0], groupId, peerList, "");
     }
 
     @Test
     public void testRemovePeer(){
         String groupId = "a1";
-        removePeer(a1[0],groupId, a2[1]);
-        removePeer(a1[0],groupId, a3[1]);
+        //removePeer(a1[0],groupId, a2[1]);
+        //removePeer(a1[0],groupId, a3[1]);
+        String follower = a1[1];
+        String learner = a2[1] + ";" +a3[1];
+        // addPeer(a1[0],groupId, a2[1]);
+        // addPeer(a1[0],groupId, a3[1]);
+        changePeers(a1[0], groupId, follower, learner);
 
     }
 
     @Test
     public void testSendOne(){
         String groupId = "a1";
-        setNormalMode(a1[0], groupId);
+        //setNormalMode(a1[0], groupId);
         sendOne(a1[0],groupId,
                 ByteString.copyFromUtf8("Hello"), ByteString.copyFromUtf8("Hello raft"));
     }
