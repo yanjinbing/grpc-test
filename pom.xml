@@ -13,6 +13,7 @@
     <module>grpc-server</module>
     <module>grpc-proto</module>
       <module>dubbo-server</module>
+      <module>rocksdb-test</module>
   </modules>
 
   <name>grpc_test</name>
