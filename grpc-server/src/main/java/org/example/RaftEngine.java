@@ -13,6 +13,7 @@ import com.alipay.sofa.jraft.rpc.RaftRpcServerFactory;
 import com.alipay.sofa.jraft.rpc.RpcServer;
 import com.alipay.sofa.jraft.storage.LogStorage;
 import com.alipay.sofa.jraft.storage.SnapshotStorage;
+import org.apache.commons.lang.StringUtils;
 import org.example.rpc.RaftNodeProcessor;
 
 import java.io.File;
@@ -95,9 +96,9 @@ public class RaftEngine {
         // 初始集群
         nodeOptions.setInitialConf(initConf);
         // 快照时间间隔
-        nodeOptions.setSnapshotIntervalSecs(10);
+        nodeOptions.setSnapshotIntervalSecs(10000);
 
-
+/*
         nodeOptions.setServiceFactory(new DefaultJRaftServiceFactory(){
 
             @Override
@@ -111,7 +112,7 @@ public class RaftEngine {
                 return logStorage;
             }
         });
-        // 构建raft组并启动raft
+ */       // 构建raft组并启动raft
         RaftGroupService raftGroupService = new RaftGroupService(groupId, serverId, nodeOptions, rpcServer, true);
         Node raftNode = raftGroupService.start(false);
         stateMachine.setNode(raftNode);
@@ -143,15 +144,30 @@ public class RaftEngine {
         node.removePeer(peerId, done);
     }
 
+    public void changePeers(String groupId, String follower, String learner, final Closure done) throws Exception {
+        System.out.println(groupId + " changePeers " + follower + " learner " + learner);
+        Node node = getRaftNode(groupId);
+
+        Configuration newPeers = new Configuration();
+        for(String peer : follower.split(";")){
+            newPeers.addPeer(JRaftUtils.getPeerId(peer));
+        }
+        for(String peer : learner.split(";")){
+            if (StringUtils.isNotBlank(peer))
+                newPeers.addLearner(JRaftUtils.getPeerId(peer));
+        }
+        node.changePeers(newPeers, done);
+    }
+
     /**
      * 是否开启raft log日志
      */
     public boolean setRaftLogMode(String groupId, boolean enable) throws Exception {
         // 检查peer数量，只有单副本才能关闭log
-        if (!enable || getPeers(groupId).size() == 1) {
-            Node node = getRaftNode(groupId);
-            logStorage.setLogMode(enable);
-        }
+//        if (!enable || getPeers(groupId).size() == 1) {
+//            Node node = getRaftNode(groupId);
+//            logStorage.setLogMode(enable);
+//        }
         return false;
     }
 

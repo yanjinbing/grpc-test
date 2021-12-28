@@ -73,7 +73,25 @@ public class GrpcClientBase {
         }
     }
 
-
+    /**
+     * 向Leader添加Peer，要求raft node 已经启动
+     */
+    public void changePeers(String address, String groupId, String follower, String learner) {
+        try {
+            // 构建消息
+            PeerRequest request = PeerRequest.newBuilder()
+                    .setGroupId(groupId)
+                    .setAddress(follower)
+                    .setLearner(learner)
+                    .build();
+            HelloWorldGrpc.HelloWorldBlockingStub stub = getStub(address);
+            // 发送消息
+            PeerReply response = stub.changePeers(request);
+        } catch (Throwable e) {
+            System.out.println(e.getMessage());
+            throw e;
+        }
+    }
     /**
      * Leader删除一个peer
      */
