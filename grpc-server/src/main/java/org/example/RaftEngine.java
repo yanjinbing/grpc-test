@@ -1,18 +1,13 @@
 package org.example;
 
-import com.alipay.sofa.jraft.Closure;
-import com.alipay.sofa.jraft.JRaftUtils;
-import com.alipay.sofa.jraft.Node;
-import com.alipay.sofa.jraft.RaftGroupService;
+import com.alipay.sofa.jraft.*;
 import com.alipay.sofa.jraft.conf.Configuration;
-import com.alipay.sofa.jraft.core.DefaultJRaftServiceFactory;
+import com.alipay.sofa.jraft.core.NodeImpl;
+import com.alipay.sofa.jraft.core.Replicator;
 import com.alipay.sofa.jraft.entity.PeerId;
 import com.alipay.sofa.jraft.option.NodeOptions;
-import com.alipay.sofa.jraft.option.RaftOptions;
 import com.alipay.sofa.jraft.rpc.RaftRpcServerFactory;
 import com.alipay.sofa.jraft.rpc.RpcServer;
-import com.alipay.sofa.jraft.storage.LogStorage;
-import com.alipay.sofa.jraft.storage.SnapshotStorage;
 import org.apache.commons.lang.StringUtils;
 import org.example.rpc.RaftNodeProcessor;
 
@@ -112,9 +107,28 @@ public class RaftEngine {
                 return logStorage;
             }
         });
- */       // 构建raft组并启动raft
+ */
+
+        // 构建raft组并启动raft
         RaftGroupService raftGroupService = new RaftGroupService(groupId, serverId, nodeOptions, rpcServer, true);
         Node raftNode = raftGroupService.start(false);
+        raftNode.addReplicatorStateListener(new Replicator.ReplicatorStateListener() {
+            @Override
+            public void onCreated(PeerId peer) {
+                System.out.println("Replicator onCreated ");
+            }
+
+            @Override
+            public void onError(PeerId peer, Status status) {
+                System.out.println("Replicator onError ");
+            }
+
+            @Override
+            public void onDestroyed(PeerId peer) {
+                System.out.println("Replicator onDestroyed ");
+            }
+        });
+
         stateMachine.setNode(raftNode);
         raftNodes.put(groupId, raftNode);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
