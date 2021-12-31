@@ -5,6 +5,7 @@ import org.rocksdb.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class RocksDBStorage implements MetaStorage {
 
@@ -51,10 +52,16 @@ public class RocksDBStorage implements MetaStorage {
                             "value2".getBytes());
                     wb.put(columnFamilyHandles.get(1), "key3".getBytes(),
                             "value3".getBytes());
-                    wb.delete(columnFamilyHandles.get(1), "key".getBytes());
+                  //  wb.delete(columnFamilyHandles.get(1), "key".getBytes());
                     db.write(new WriteOptions(), wb);
                 }
+                db.flush(new FlushOptions().setWaitForFlush(true));
 
+                Map<String, TableProperties> properties = db.getPropertiesOfAllTables();
+
+                List<Range> ranges = new ArrayList<>();
+                ranges.add(new Range(new Slice(new byte[]{0}), new Slice(new byte[]{-0x80})));
+                Map<String, TableProperties> properties2 = db.getPropertiesOfTablesInRange(ranges);
                 // drop column family
                 db.dropColumnFamily(columnFamilyHandles.get(1));
             } finally {

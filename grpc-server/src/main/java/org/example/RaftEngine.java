@@ -10,6 +10,7 @@ import com.alipay.sofa.jraft.rpc.RaftRpcServerFactory;
 import com.alipay.sofa.jraft.rpc.RpcServer;
 import org.apache.commons.lang.StringUtils;
 import org.example.rpc.RaftNodeProcessor;
+import org.example.rpc.SnapshotProcessor;
 
 import java.io.File;
 import java.util.List;
@@ -31,6 +32,7 @@ public class RaftEngine {
         rpcServer = RaftRpcServerFactory.createRaftRpcServer(serverId.getEndpoint());
         // 注册增加Raft node消息
         rpcServer.registerProcessor(new RaftNodeProcessor(this));
+        SnapshotProcessor.registerProcessor(rpcServer, this);
         rpcServer.init(null);
     }
 
@@ -215,4 +217,12 @@ public class RaftEngine {
     }
 
 
+
+    public SnapshotProcessor.Status getSnapshotFile(SnapshotProcessor.GetFileRequest request){
+        return SnapshotProcessor.Status.OK;
+    }
+
+    public SnapshotProcessor.Status receiveSnapshotFile(SnapshotProcessor.TransFileRequest request){
+        return SnapshotProcessor.Status.OK;
+    }
 }
