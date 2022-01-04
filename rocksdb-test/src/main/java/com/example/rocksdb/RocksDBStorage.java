@@ -23,8 +23,8 @@ public class RocksDBStorage implements MetaStorage {
             System.out.println("usage: RocksDBColumnFamilySample db_path");
             System.exit(-1);
         }
-        testSplit(args);
-        //testPut(args);
+        //testSplit(args);
+        testPut(args);
     }
     public static void testPut(String[] args) throws RocksDBException, InterruptedException {
         final String dbPath = args[0];
@@ -63,9 +63,18 @@ public class RocksDBStorage implements MetaStorage {
                     System.out.println("入库完成，等待优化");
                     Thread.sleep(10000);
 
-                    Snapshot snapshot = db.getSnapshot();
-                    db.newIterator(new ReadOptions().setSnapshot(snapshot));
+                    long seqNo = db.getLatestSequenceNumber();
+                    for(int i = 0; i<10; i++) {
+                        db.put(columnFamilyHandles.get(1), String.format("second%06d", i).getBytes(), value);
+                    }
 
+                    RocksIterator iterator = db.newIterator(columnFamilyHandles.get(1),
+                            new ReadOptions().setIterStartSeqnum(seqNo));
+                    iterator.seekToFirst();
+                    while(iterator.isValid()){
+                        System.out.println(new String(iterator.key()));
+                        iterator.next();
+                    }
 
                     System.out.println("getLatestSequenceNumber " + db.getLatestSequenceNumber());
 
@@ -185,8 +194,6 @@ public class RocksDBStorage implements MetaStorage {
                 byte[] startKey = String.format("hello%06d", 10).getBytes();
                 byte[] endKey = String.format("hello%06d", 500).getBytes();
 
-                Snapshot snapshot = db.getSnapshot();
-                db.newIterator(new ReadOptions().setSnapshot(snapshot));
 
 
                 System.out.println("getLatestSequenceNumber " + db.getLatestSequenceNumber());
@@ -200,7 +207,7 @@ public class RocksDBStorage implements MetaStorage {
                         System.out.println("\tsize: " + levelMetaData.size());
                         for (SstFileMetaData sst : levelMetaData.files()) {
                             if (!keyInSstFile(sst, startKey, endKey)) break;
-                            ;
+
                             System.out.println("\t\tfileName: " + sst.fileName());
                             System.out.println("\t\tpath: " + sst.path());
                             System.out.println("\t\tsize: " + sst.size());
