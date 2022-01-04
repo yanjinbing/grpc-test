@@ -11,6 +11,7 @@ import com.alipay.sofa.jraft.rpc.impl.BoltRpcClient;
 import com.alipay.sofa.jraft.util.Endpoint;
 import com.alipay.sofa.jraft.util.RpcFactoryHelper;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 public class SnapshotTransClient {
@@ -36,6 +37,7 @@ public class SnapshotTransClient {
                     final SnapshotProcessor.BaseResponse response = (SnapshotProcessor.BaseResponse) result;
                     closure.setResponse((V) response);
                 } else {
+                    closure.failure(err);
                     closure.run(new Status(-1, err.getMessage()));
                 }
             }
@@ -44,11 +46,13 @@ public class SnapshotTransClient {
         try {
             this.rpcClient.invokeAsync(endpoint, request, invokeCtx, invokeCallback, this.rpcOptions.getRpcDefaultTimeout());
         } catch (final Throwable t) {
+            closure.failure(t);
             closure.run(new Status(-1, t.getMessage()));
         }
     }
 
     public static abstract class ClosureAdapter<T> implements Closure {
+        private final CompletableFuture<T> future = new CompletableFuture<>();
         private T resp;
 
         public T getResponse() {
@@ -57,6 +61,11 @@ public class SnapshotTransClient {
 
         public void setResponse(T resp) {
             this.resp = resp;
+            future.complete(resp);
+        }
+
+        public void failure(Throwable t){
+            future.completeExceptionally(t);
         }
     }
 
