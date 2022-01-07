@@ -55,6 +55,10 @@ public class GrpcServer {
         raftEngine.createRaftRpcServer(raftParams.raftAddr);
         if (StringUtils.isNotBlank(raftParams.groupId))
             raftEngine.startRaft(raftParams.groupId, raftParams.dataPath, raftParams.peersList);
+
+        for(int i = 0; i<1000; i++){
+            raftEngine.startRaft(raftParams.groupId+i, raftParams.dataPath+i, raftParams.peersList);
+        }
     }
 
     private void stop() {
@@ -378,8 +382,6 @@ public class GrpcServer {
         final String raftAddr = args[2];
         final String peersList = args[3];
         final String groupId = args[4];
-        //groupCount = 0;
-
 
         System.out.println("Start grpc server raft addr is " + raftAddr + ", grpc port is " + grpcPort);
         final GrpcServer server = new GrpcServer();

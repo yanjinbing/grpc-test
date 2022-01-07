@@ -1,20 +1,20 @@
 package org.example.rpc;
 
 import com.alipay.sofa.jraft.Closure;
+import com.alipay.sofa.jraft.JRaftUtils;
 import com.alipay.sofa.jraft.Status;
 import com.alipay.sofa.jraft.option.RpcOptions;
 import com.alipay.sofa.jraft.rpc.InvokeCallback;
 import com.alipay.sofa.jraft.rpc.InvokeContext;
 import com.alipay.sofa.jraft.rpc.RaftRpcFactory;
 import com.alipay.sofa.jraft.rpc.RpcClient;
-import com.alipay.sofa.jraft.rpc.impl.BoltRpcClient;
 import com.alipay.sofa.jraft.util.Endpoint;
 import com.alipay.sofa.jraft.util.RpcFactoryHelper;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
 
-public class SnapshotTransClient {
+public class SnapshotRpcClient {
     protected volatile RpcClient rpcClient;
     private RpcOptions rpcOptions;
 
@@ -23,11 +23,30 @@ public class SnapshotTransClient {
         final RaftRpcFactory factory = RpcFactoryHelper.rpcFactory();
         this.rpcClient = factory.createRpcClient(factory.defaultJRaftClientConfigHelper(this.rpcOptions));
         return this.rpcClient.init(null);
+    }
 
+    /**
+     * 请求快照
+     */
+    public CompletableFuture<SnapshotProcessor.GetSnapshotResponse>
+    getSnapshot(final String address, SnapshotProcessor.GetSnapshotRequest request ) {
+        ClosureAdapter<SnapshotProcessor.GetSnapshotResponse> response = new ClosureAdapter<>();
+        internalCallAsyncWithRpc(JRaftUtils.getEndPoint(address), request, response);
+        return response.future;
+    }
+
+    /**
+     * 传输快照
+     */
+    public CompletableFuture<SnapshotProcessor.TransSnapshotResponse>
+    transSnapshot(final String address, SnapshotProcessor.TransSnapshotRequest request) {
+        ClosureAdapter<SnapshotProcessor.TransSnapshotResponse> response = new ClosureAdapter<>();
+        internalCallAsyncWithRpc(JRaftUtils.getEndPoint(address), request, response);
+        return response.future;
     }
 
     private <V> void internalCallAsyncWithRpc(final Endpoint endpoint, final SnapshotProcessor.BaseRequest request,
-                                              final ClosureAdapter<V> closure) {
+                                  final ClosureAdapter<V> closure) {
         final InvokeContext invokeCtx = null;
         final InvokeCallback invokeCallback = new InvokeCallback() {
 
@@ -51,13 +70,11 @@ public class SnapshotTransClient {
         }
     }
 
-    public static abstract class ClosureAdapter<T> implements Closure {
+    public static class ClosureAdapter<T> implements Closure {
         private final CompletableFuture<T> future = new CompletableFuture<>();
         private T resp;
 
-        public T getResponse() {
-            return this.resp;
-        }
+        public T getResponse() { return this.resp; }
 
         public void setResponse(T resp) {
             this.resp = resp;
@@ -66,6 +83,11 @@ public class SnapshotTransClient {
 
         public void failure(Throwable t){
             future.completeExceptionally(t);
+        }
+
+        @Override
+        public void run(Status status) {
+
         }
     }
 

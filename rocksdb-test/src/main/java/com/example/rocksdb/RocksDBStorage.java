@@ -1,5 +1,6 @@
 package com.example.rocksdb;
 
+import org.apache.commons.codec.binary.Hex;
 import org.rocksdb.*;
 import org.rocksdb.util.BytewiseComparator;
 
@@ -52,28 +53,57 @@ public class RocksDBStorage implements MetaStorage {
                  final RocksDB db = RocksDB.open(options, dbPath, cfDescriptors, columnFamilyHandles)) {
 
                 try {
+
                     for(int i = 0; i<1000; i++) {
                         db.put(columnFamilyHandles.get(1), String.format("hello%06d", i).getBytes(), value);
                     }
                     for(int i = 0; i<1000; i++) {
                         db.put(columnFamilyHandles.get(0), String.format("good%06d", i).getBytes(), value);
                     }
-                    db.flush(new FlushOptions().setWaitForFlush(true), columnFamilyHandles);
-                    db.compactRange();
-                    System.out.println("入库完成，等待优化");
-                    Thread.sleep(10000);
+                    long seqNo = db.getLatestSequenceNumber() + 1;
 
-                    long seqNo = db.getLatestSequenceNumber();
+
                     for(int i = 0; i<10; i++) {
                         db.put(columnFamilyHandles.get(1), String.format("second%06d", i).getBytes(), value);
                     }
+                    Snapshot snapshot = db.getSnapshot();
+                    for(int i = 3; i<10; i++) {
+                        db.put(columnFamilyHandles.get(1), String.format("third%06d", i).getBytes(), value);
+                    }
+                    for(int i = 5; i<10; i++) {
+                        db.put(columnFamilyHandles.get(1), String.format("third%06d", i).getBytes(), value);
+                    }
 
-                    RocksIterator iterator = db.newIterator(columnFamilyHandles.get(1),
-                            new ReadOptions().setIterStartSeqnum(seqNo));
-                    iterator.seekToFirst();
-                    while(iterator.isValid()){
-                        System.out.println(new String(iterator.key()));
-                        iterator.next();
+                    {
+                        RocksIterator iterator = db.newIterator(columnFamilyHandles.get(1),
+                                new ReadOptions().setSnapshot(snapshot)
+                                        .setIterStartSeqnum(seqNo));
+                        iterator.seekToFirst();
+                        while (iterator.isValid()) {
+                            byte[] key = iterator.key();
+                            System.out.println(new String(key, 0, key.length - 8) + " "
+                                    + Hex.encodeHexString(ByteBuffer.wrap(key, key.length - 8, 8)));
+                            iterator.next();
+                        }
+                    }
+
+                    db.flush(new FlushOptions().setWaitForFlush(true), columnFamilyHandles);
+                    db.compactRange();
+                    System.out.println("入库完成，等待优化");
+                    {
+                        RocksIterator iterator = db.newIterator(columnFamilyHandles.get(1),
+                                new ReadOptions().setIterStartSeqnum(seqNo));
+                        iterator.seekToFirst();
+                        try (EnvOptions envOptions = new EnvOptions();
+                             Options wOptions = new Options();
+                             SstFileWriter writer = new SstFileWriter(envOptions, wOptions)) {
+                            writer.open("./tmp/" + "new.sst");
+                            while (iterator.isValid()) {
+                                writer.put(iterator.key(), iterator.value());
+                                iterator.next();
+                            }
+                            writer.finish();
+                        }
                     }
 
                     System.out.println("getLatestSequenceNumber " + db.getLatestSequenceNumber());

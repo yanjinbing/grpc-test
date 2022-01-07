@@ -7,12 +7,17 @@ import lombok.Data;
 import org.example.RaftEngine;
 
 import java.io.Serializable;
+import java.util.List;
 
+/**
+ * 快照同步rpc处理器，leader批量入库完成后，基于seqnum读取新增的kv,批量发送给follower.
+ * @param <T>
+ */
 public class SnapshotProcessor<T extends SnapshotProcessor.BaseRequest> implements RpcProcessor<T> {
 
     public static void registerProcessor(final RpcServer rpcServer, final RaftEngine engine){
-        rpcServer.registerProcessor(new SnapshotProcessor<>(GetFileRequest.class, engine));
-        rpcServer.registerProcessor(new SnapshotProcessor<>(TransFileRequest.class, engine));
+        rpcServer.registerProcessor(new SnapshotProcessor<>(GetSnapshotRequest.class, engine));
+        rpcServer.registerProcessor(new SnapshotProcessor<>(TransSnapshotRequest.class, engine));
     }
 
     private final Class<?> requestClass;
@@ -26,16 +31,21 @@ public class SnapshotProcessor<T extends SnapshotProcessor.BaseRequest> implemen
     @Override
     public void handleRequest(RpcContext rpcCtx, T request) {
         switch (request.magic()) {
-            case BaseRequest.GET_FILE:
-                Status status = engine.getSnapshotFile((GetFileRequest) request);
-                rpcCtx.sendResponse(new GetFileResponse() {{
-                    setStatus(status);
-                }});
+            case BaseRequest.GET_SNAPSHOT: {
+                Status status = engine.getSnapshotFile((GetSnapshotRequest) request);
+                GetSnapshotResponse response = new GetSnapshotResponse();
+                response.setSeqNum(100);
+                response.setStatus(status);
+                rpcCtx.sendResponse(response);
                 break;
-            case BaseRequest.TRANS_FILE:
-                status = engine.receiveSnapshotFile((TransFileRequest) request);
-                rpcCtx.sendResponse(new TransFileResponse(){{ setStatus(status);}});
+            }
+            case BaseRequest.TRANS_SNAPSHOT: {
+                Status status = engine.receiveSnapshotFile((TransSnapshotRequest) request);
+                TransSnapshotResponse response = new TransSnapshotResponse();
+                response.setStatus(status);
+                rpcCtx.sendResponse(response);
                 break;
+            }
             default:
         }
     }
@@ -46,8 +56,8 @@ public class SnapshotProcessor<T extends SnapshotProcessor.BaseRequest> implemen
     }
 
     public abstract static class BaseRequest implements Serializable {
-        public static final byte GET_FILE = 0x01;
-        public static final byte TRANS_FILE = 0x02;
+        public static final byte GET_SNAPSHOT = 0x01;
+        public static final byte TRANS_SNAPSHOT = 0x02;
 
         public abstract byte magic();
     }
@@ -62,51 +72,52 @@ public class SnapshotProcessor<T extends SnapshotProcessor.BaseRequest> implemen
      * Follower发起的获取文件请求
      */
     @Data
-    public static class GetFileRequest extends BaseRequest {
+    public static class GetSnapshotRequest extends BaseRequest {
         private String graphName;
         private int partitionId;
+        private long seqNum;        // 开始seqnum
 
         @Override
         public byte magic() {
-            return GET_FILE;
+            return GET_SNAPSHOT;
         }
     }
 
     @Data
-    public static class GetFileResponse extends BaseResponse {
-
+    public static class GetSnapshotResponse extends BaseResponse {
+        private long seqNum;    // 最新的seqnum
     }
 
     /**
      * Leader发起的传输文件请求
      */
     @Data
-    public static class TransFileRequest extends BaseRequest {
+    public static class TransSnapshotRequest extends BaseRequest {
         private String graphName;
         private int partitionId;
-        private String fileName;       // 文件名
-        private byte[] data;           // 数据内容
-        private int offset;          // 偏移量
-        private int size;               // 数据大小
-        private boolean eof;            // 该文件是否结束
-        private boolean over;           // 所有文件是否结束
-        private Status  status;         // 传输状态
+        private long startSeqNum;
+        private long endSeqNum;
+        private List<byte[]> data;           // 数据内容
+        private Status  status;         // 传输状态,COMPLETE传输完成，INCOMPLETE未传输完成，还需要继续传输
 
         @Override
         public byte magic() {
-            return TRANS_FILE;
+            return TRANS_SNAPSHOT;
         }
     }
 
     @Data
-    public static class TransFileResponse extends BaseResponse {
+    public static class TransSnapshotResponse extends BaseResponse {
     }
 
-    public enum Status {
-        OK(0, "OK"),
-        NO_PARTITION_FOUND(1, "no partition"),
-        IO_ERROR(2, "io error"),
-        STOP(100, "");
+    public enum Status implements Serializable{
+        UNKNOWN(-1, "unknown"),
+        OK(0, "ok"),
+        COMPLETE(0, "Transmission completed"),
+        INCOMPLETE(1, "Incomplete transmission"),
+        NO_PARTITION(10, "Partition not found"),
+        IO_ERROR(11, "io error"),
+        ABORT(100, "Transmission aborted");
 
         private final int code;
         private final String msg;

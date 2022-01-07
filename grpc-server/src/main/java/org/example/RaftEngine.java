@@ -2,7 +2,6 @@ package org.example;
 
 import com.alipay.sofa.jraft.*;
 import com.alipay.sofa.jraft.conf.Configuration;
-import com.alipay.sofa.jraft.core.NodeImpl;
 import com.alipay.sofa.jraft.core.Replicator;
 import com.alipay.sofa.jraft.entity.PeerId;
 import com.alipay.sofa.jraft.option.NodeOptions;
@@ -218,11 +217,20 @@ public class RaftEngine {
 
 
 
-    public SnapshotProcessor.Status getSnapshotFile(SnapshotProcessor.GetFileRequest request){
+    public SnapshotProcessor.Status getSnapshotFile(SnapshotProcessor.GetSnapshotRequest request){
+        System.out.println("getSnapshotFile request " + request);
         return SnapshotProcessor.Status.OK;
     }
 
-    public SnapshotProcessor.Status receiveSnapshotFile(SnapshotProcessor.TransFileRequest request){
+    public SnapshotProcessor.Status receiveSnapshotFile(SnapshotProcessor.TransSnapshotRequest request){
+        String s = "";
+        List<byte[]> data = request.getData();
+        for(byte[] v : data){
+            s += new String(v);
+            s += " ";
+        }
+        System.out.println("receiveSnapshotFile request " + request);
+        System.out.println("receiveSnapshotFile " + s);
         return SnapshotProcessor.Status.OK;
     }
 }
