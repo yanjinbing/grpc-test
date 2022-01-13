@@ -7,6 +7,7 @@ import com.alipay.sofa.jraft.entity.PeerId;
 import com.alipay.sofa.jraft.option.NodeOptions;
 import com.alipay.sofa.jraft.rpc.RaftRpcServerFactory;
 import com.alipay.sofa.jraft.rpc.RpcServer;
+import com.alipay.sofa.jraft.util.Utils;
 import org.apache.commons.lang.StringUtils;
 import org.example.rpc.RaftNodeProcessor;
 import org.example.rpc.SnapshotProcessor;
@@ -28,7 +29,8 @@ public class RaftEngine {
      */
     public void createRaftRpcServer(String raftAddr) {
         serverId = JRaftUtils.getPeerId(raftAddr);
-        rpcServer = RaftRpcServerFactory.createRaftRpcServer(serverId.getEndpoint());
+        rpcServer = RaftRpcServerFactory.createRaftRpcServer(serverId.getEndpoint(),
+                JRaftUtils.createExecutor("RAFT-RPC-", Utils.cpus() * 6),null);
         // 注册增加Raft node消息
         rpcServer.registerProcessor(new RaftNodeProcessor(this));
         SnapshotProcessor.registerProcessor(rpcServer, this);
@@ -92,7 +94,12 @@ public class RaftEngine {
         // 初始集群
         nodeOptions.setInitialConf(initConf);
         // 快照时间间隔
-        nodeOptions.setSnapshotIntervalSecs(10000);
+        nodeOptions.setSnapshotIntervalSecs(10);
+        nodeOptions.setSharedVoteTimer(true);
+        nodeOptions.setSharedStepDownTimer(true);
+        nodeOptions.setSharedSnapshotTimer(true);
+        nodeOptions.setSharedElectionTimer(true);
+        nodeOptions.setSharedTimerPool(true);
 
 /*
         nodeOptions.setServiceFactory(new DefaultJRaftServiceFactory(){
@@ -108,7 +115,7 @@ public class RaftEngine {
                 return logStorage;
             }
         });
- */
+*/
 
         // 构建raft组并启动raft
         RaftGroupService raftGroupService = new RaftGroupService(groupId, serverId, nodeOptions, rpcServer, true);

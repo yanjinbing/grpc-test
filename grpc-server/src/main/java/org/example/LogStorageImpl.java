@@ -59,7 +59,6 @@ public class LogStorageImpl extends RocksDBLogStorage {
      * Get logEntry by index.
      */
     public LogEntry getEntry(final long index) {
-        System.out.println("LogStorage getEntry " + index);
         LogEntry entry = closeLog ? logEntry : super.getEntry(index);
         return entry;
     }

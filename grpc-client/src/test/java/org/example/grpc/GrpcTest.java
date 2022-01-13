@@ -50,7 +50,7 @@ public class GrpcTest extends GrpcClientBase{
     public void testSendOne(){
         String groupId = "a1";
         //setNormalMode(a1[0], groupId);
-        sendOne(a1[0],groupId,
+        sendOne(a3[0],groupId,
                 ByteString.copyFromUtf8("Hello"), ByteString.copyFromUtf8("Hello raft"));
     }
 
