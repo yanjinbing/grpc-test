@@ -55,10 +55,6 @@ public class GrpcServer {
         raftEngine.createRaftRpcServer(raftParams.raftAddr);
         if (StringUtils.isNotBlank(raftParams.groupId))
             raftEngine.startRaft(raftParams.groupId, raftParams.dataPath, raftParams.peersList);
-
-        for(int i = 0; i<1000; i++){
-            raftEngine.startRaft(raftParams.groupId+i, raftParams.dataPath+i, raftParams.peersList);
-        }
     }
 
     private void stop() {
@@ -276,6 +272,22 @@ public class GrpcServer {
             }
         }
 
+        public void transferLeader(PeerRequest request,
+                                   io.grpc.stub.StreamObserver<PeerReply> observer) {
+            String address = request.getAddress();
+            String groupId = request.getGroupId();
+
+            try {
+                engine.transferLeader(groupId, address);
+                observer.onNext(PeerReply.newBuilder().build());
+                observer.onCompleted();
+            } catch (Exception e) {
+                e.printStackTrace();
+                observer.onError(e);
+                observer.onCompleted();
+            }
+        }
+
         public void setMode(SetModeRequest request,
                             io.grpc.stub.StreamObserver<SetModeReply> observer) {
             String groupId = request.getGroupId();
@@ -351,6 +363,7 @@ public class GrpcServer {
             task.setDone(new StoreClosure(op, done));
             this.engine.getRaftNode(groupId).apply(task);
         }
+
 
 
     }

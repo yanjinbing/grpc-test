@@ -11,6 +11,17 @@ public class GrpcTest extends GrpcClientBase{
     String[] a3 = {"127.0.0.1:8093","127.0.0.1:8083"};
 
     @Test
+    public void getLeader(){
+        String groupId = "a1";
+        System.out.println(getLeader(a2[0], groupId));
+    }
+    @Test
+    public void transferLeader(){
+        String groupId = "a1";
+        String peer = a2[1];
+        transferLeader(a3[0], groupId, peer);
+    }
+    @Test
     public void startRaftNode(){
         String groupId = "a1";
         startRaftNode(a2[0], groupId, a2[1]);

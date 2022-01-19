@@ -38,7 +38,7 @@ public class GrpcClientBase {
     }
 
 
-    public void getLeader(String address, String groupId) {
+    public String getLeader(String address, String groupId) {
         try {
             GetLeaderRequest request = GetLeaderRequest.newBuilder()
                     .setGroupId(groupId)
@@ -46,7 +46,7 @@ public class GrpcClientBase {
             HelloWorldGrpc.HelloWorldBlockingStub stub = getStub(address);
 
             GetLeaderReply reply = stub.getLeader(request);
-            System.out.println("Leader is " + reply.getLeader());
+            return reply.getLeader();
         } catch (Exception e) {
             e.printStackTrace();
             e.getCause().printStackTrace();
@@ -110,7 +110,24 @@ public class GrpcClientBase {
             throw e;
         }
     }
-
+    /**
+     * 转移Leader
+     */
+    public void transferLeader(String address, String groupId, String peer) {
+        try {
+            // 构建消息
+            PeerRequest request = PeerRequest.newBuilder()
+                    .setGroupId(groupId)
+                    .setAddress(peer)
+                    .build();
+            HelloWorldGrpc.HelloWorldBlockingStub stub = getStub(address);
+            // 发送消息
+            PeerReply response = stub.transferLeader(request);
+        } catch (Throwable e) {
+            System.out.println(e.getMessage());
+            throw e;
+        }
+    }
     /**
      * 启动raft node
      */
@@ -151,6 +168,11 @@ public class GrpcClientBase {
         setMode(address, groupId, WorkMode.NORMAL_VALUE);
     }
 
+    /**
+     * 流式传输
+     * @param address
+     * @param id
+     */
     public void scan(String address, String id){
         ScanRequest request = ScanRequest.newBuilder().setId(id).build();
         StreamObserver<ScanRequest> requestStream = getStreamStub(address).scan(new StreamObserver<ScanResponse>() {

@@ -93,13 +93,16 @@ public class RaftEngine {
         nodeOptions.setSnapshotUri(snapPath);
         // 初始集群
         nodeOptions.setInitialConf(initConf);
+      //  nodeOptions.setElectionTimeoutMs(2000);
         // 快照时间间隔
-        nodeOptions.setSnapshotIntervalSecs(10);
+   //     nodeOptions.setSnapshotIntervalSecs(10);
         nodeOptions.setSharedVoteTimer(true);
         nodeOptions.setSharedStepDownTimer(true);
         nodeOptions.setSharedSnapshotTimer(true);
         nodeOptions.setSharedElectionTimer(true);
         nodeOptions.setSharedTimerPool(true);
+        nodeOptions.setElectionPriority(serverId.getPriority());
+        nodeOptions.setRpcDefaultTimeout(5000);
 
 /*
         nodeOptions.setServiceFactory(new DefaultJRaftServiceFactory(){
@@ -128,7 +131,7 @@ public class RaftEngine {
 
             @Override
             public void onError(PeerId peer, Status status) {
-                System.out.println("Replicator onError ");
+
             }
 
             @Override
@@ -164,6 +167,11 @@ public class RaftEngine {
         Node node = getRaftNode(groupId);
         PeerId peerId = JRaftUtils.getPeerId(peer);
         node.removePeer(peerId, done);
+    }
+
+    public void transferLeader(String groupId, String peer) throws Exception {
+        Node node = getRaftNode(groupId);
+        node.transferLeadershipTo(JRaftUtils.getPeerId(peer));
     }
 
     public void changePeers(String groupId, String follower, String learner, final Closure done) throws Exception {

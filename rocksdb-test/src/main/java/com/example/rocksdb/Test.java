@@ -34,7 +34,7 @@ public class Test {
         new Client("Client2", f).start();
         System.out.println("waiting");
         //设置Future.get()获取到的值
-        f.complete(100);
+        f.completeExceptionally(new Exception());
         //以异常的形式触发计算
         //f.completeExceptionally(new Exception());
         Thread.sleep(10000);

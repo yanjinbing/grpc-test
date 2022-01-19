@@ -18,6 +18,7 @@ service HelloWorld {
   rpc AddPeer(PeerRequest) returns (PeerReply){}
   rpc RemovePeer(PeerRequest) returns (PeerReply){}
   rpc ChangePeers(PeerRequest) returns (PeerReply){}
+  rpc TransferLeader(PeerRequest) returns (PeerReply){}
 
   // 设置批量入库模式
   rpc SetMode(SetModeRequest) returns (SetModeReply){}
