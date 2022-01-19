@@ -6,8 +6,10 @@ import org.rocksdb.util.BytewiseComparator;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 
 public class RocksDBStorage implements MetaStorage {
@@ -25,7 +27,57 @@ public class RocksDBStorage implements MetaStorage {
             System.exit(-1);
         }
         //testSplit(args);
-        testPut(args);
+        //testPut(args);
+        exportSST(args[0], 1);
+    }
+
+    public static void exportSST(String dbPath, int partId) throws RocksDBException {
+        byte[] startKey = intToBytesForPartId(partId);
+        byte[] endKey = intToBytesForPartId(partId + 1);
+        String target = "tmp/1.sst";
+
+        int kNumInternalBytes = 8;      //internal key 增加的8个字节后缀
+        try (final ColumnFamilyOptions cfOpts = new ColumnFamilyOptions()) {
+            // list of column family descriptors, first entry must always be default column family
+            final List<ColumnFamilyDescriptor> cfDescriptors = Arrays.asList(
+                    new ColumnFamilyDescriptor(RocksDB.DEFAULT_COLUMN_FAMILY, cfOpts),
+                    new ColumnFamilyDescriptor("g+v".getBytes(), cfOpts)
+            );
+            // a list which will hold the handles for the column families once the db is opened
+            final List<ColumnFamilyHandle> columnFamilyHandles = new ArrayList<>();
+
+            try (final DBOptions options = new DBOptions();
+                 final RocksDB db = RocksDB.open(options, dbPath, cfDescriptors, columnFamilyHandles)) {
+                Snapshot snapshot = db.getSnapshot();
+                long startSeqNum = 0;
+
+                RocksIterator iterator = db.newIterator(columnFamilyHandles.get(1), new ReadOptions()
+                        .setSnapshot(snapshot)
+                        .setIterStartSeqnum(startSeqNum)
+                        .setIterateLowerBound(new Slice(startKey))
+                        .setIterateUpperBound(new Slice(endKey)));
+                iterator.seekToFirst();
+
+                try (EnvOptions envOptions = new EnvOptions();
+                     Options wOptions = new Options();
+                     SstFileWriter writer = new SstFileWriter(envOptions, wOptions)) {
+                    writer.open(target);
+                    while (iterator.isValid()) {
+                        byte[] key = Arrays.copyOfRange(iterator.key(), 0, iterator.key().length - kNumInternalBytes);
+                        writer.put(key, iterator.value());
+                        iterator.next();
+                    }
+                    writer.finish();
+                }
+            }
+        }
+    }
+
+    public static byte[] intToBytesForPartId(int v) {
+        short s = (short) v;
+        ByteBuffer buffer = ByteBuffer.allocate(Short.BYTES).order(ByteOrder.BIG_ENDIAN);
+        buffer.putShort(s);
+        return buffer.array();
     }
     public static void testPut(String[] args) throws RocksDBException, InterruptedException {
         final String dbPath = args[0];
@@ -192,6 +244,9 @@ public class RocksDBStorage implements MetaStorage {
             }
         }
     }
+
+
+
 
 
     public static void testSplit(String[] args) throws RocksDBException {
