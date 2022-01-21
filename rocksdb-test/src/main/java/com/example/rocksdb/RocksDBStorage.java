@@ -15,10 +15,11 @@ import java.util.List;
 public class RocksDBStorage implements MetaStorage {
 
     private static byte[] value;
+
     static {
         value = new byte[1024];
-        for(int i = 0; i<1024; i++)
-            value[i] = (byte)(i % 0x70);
+        for (int i = 0; i < 1024; i++)
+            value[i] = (byte) (i % 0x70);
     }
 
     public static void main(String[] args) throws RocksDBException, InterruptedException {
@@ -27,8 +28,8 @@ public class RocksDBStorage implements MetaStorage {
             System.exit(-1);
         }
         //testSplit(args);
-        //testPut(args);
-        exportSST(args[0], 1);
+        testPut(args);
+        //exportSST(args[0], 1);
     }
 
     public static void exportSST(String dbPath, int partId) throws RocksDBException {
@@ -36,22 +37,32 @@ public class RocksDBStorage implements MetaStorage {
         byte[] endKey = intToBytesForPartId(partId + 1);
         String target = "tmp/1.sst";
 
+        new File(target).getParentFile().mkdirs();
+
+        List<ColumnFamilyDescriptor> cfDescriptors = new ArrayList<ColumnFamilyDescriptor>();
+        List<byte[]> columnFamilyBytes = RocksDB.listColumnFamilies(new Options(), dbPath);
+        ColumnFamilyOptions cfOptions = new ColumnFamilyOptions();
+        if (columnFamilyBytes.size() > 0) {
+            for (byte[] columnFamilyByte : columnFamilyBytes) {
+                cfDescriptors.add(new ColumnFamilyDescriptor(columnFamilyByte, cfOptions));
+            }
+        }
         int kNumInternalBytes = 8;      //internal key 增加的8个字节后缀
         try (final ColumnFamilyOptions cfOpts = new ColumnFamilyOptions()) {
-            // list of column family descriptors, first entry must always be default column family
-            final List<ColumnFamilyDescriptor> cfDescriptors = Arrays.asList(
-                    new ColumnFamilyDescriptor(RocksDB.DEFAULT_COLUMN_FAMILY, cfOpts),
-                    new ColumnFamilyDescriptor("g+v".getBytes(), cfOpts)
-            );
-            // a list which will hold the handles for the column families once the db is opened
+
             final List<ColumnFamilyHandle> columnFamilyHandles = new ArrayList<>();
 
             try (final DBOptions options = new DBOptions();
                  final RocksDB db = RocksDB.open(options, dbPath, cfDescriptors, columnFamilyHandles)) {
                 Snapshot snapshot = db.getSnapshot();
                 long startSeqNum = 0;
+                ColumnFamilyHandle gvHandle = null;
+                for (ColumnFamilyHandle handle : columnFamilyHandles) {
+                    if (new String(handle.getName()).equalsIgnoreCase("g+v"))
+                        gvHandle = handle;
+                }
 
-                RocksIterator iterator = db.newIterator(columnFamilyHandles.get(1), new ReadOptions()
+                RocksIterator iterator = db.newIterator(gvHandle, new ReadOptions()
                         .setSnapshot(snapshot)
                         .setIterStartSeqnum(startSeqNum)
                         .setIterateLowerBound(new Slice(startKey))
@@ -62,8 +73,12 @@ public class RocksDBStorage implements MetaStorage {
                      Options wOptions = new Options();
                      SstFileWriter writer = new SstFileWriter(envOptions, wOptions)) {
                     writer.open(target);
+
                     while (iterator.isValid()) {
-                        byte[] key = Arrays.copyOfRange(iterator.key(), 0, iterator.key().length - kNumInternalBytes);
+
+                        byte[] key = iterator.key();
+                        if (startSeqNum > 0)
+                            key = Arrays.copyOfRange(iterator.key(), 0, iterator.key().length - kNumInternalBytes);
                         writer.put(key, iterator.value());
                         iterator.next();
                     }
@@ -79,18 +94,19 @@ public class RocksDBStorage implements MetaStorage {
         buffer.putShort(s);
         return buffer.array();
     }
+
     public static void testPut(String[] args) throws RocksDBException, InterruptedException {
         final String dbPath = args[0];
         deleteDir(new File(dbPath));
         try (final ColumnFamilyOptions cfOpts = new ColumnFamilyOptions()
                 .setMinWriteBufferNumberToMerge(2)
                 .setMaxWriteBufferNumber(4)
-                .setTargetFileSizeBase(64*1024)
-                .setWriteBufferSize(64*1024)
+                .setTargetFileSizeBase(64 * 1024)
+                .setWriteBufferSize(64 * 1024)
                 .setLevel0FileNumCompactionTrigger(2)
-                .setMaxBytesForLevelBase(128*1024)
+                .setMaxBytesForLevelBase(128 * 1024)
                 .setMaxBytesForLevelMultiplier(2)
-                .setNumLevels(7)){
+                .setNumLevels(7)) {
 
             // list of column family descriptors, first entry must always be default column family
             final List<ColumnFamilyDescriptor> cfDescriptors = Arrays.asList(
@@ -106,23 +122,23 @@ public class RocksDBStorage implements MetaStorage {
 
                 try {
 
-                    for(int i = 0; i<1000; i++) {
+                    for (int i = 0; i < 1000; i++) {
                         db.put(columnFamilyHandles.get(1), String.format("hello%06d", i).getBytes(), value);
                     }
-                    for(int i = 0; i<1000; i++) {
+                    for (int i = 0; i < 1000; i++) {
                         db.put(columnFamilyHandles.get(0), String.format("good%06d", i).getBytes(), value);
                     }
                     long seqNo = db.getLatestSequenceNumber() + 1;
 
 
-                    for(int i = 0; i<10; i++) {
+                    for (int i = 0; i < 10; i++) {
                         db.put(columnFamilyHandles.get(1), String.format("second%06d", i).getBytes(), value);
                     }
                     Snapshot snapshot = db.getSnapshot();
-                    for(int i = 3; i<10; i++) {
+                    for (int i = 3; i < 10; i++) {
                         db.put(columnFamilyHandles.get(1), String.format("third%06d", i).getBytes(), value);
                     }
-                    for(int i = 5; i<10; i++) {
+                    for (int i = 5; i < 10; i++) {
                         db.put(columnFamilyHandles.get(1), String.format("third%06d", i).getBytes(), value);
                     }
 
@@ -142,10 +158,20 @@ public class RocksDBStorage implements MetaStorage {
                     db.flush(new FlushOptions().setWaitForFlush(true), columnFamilyHandles);
                     db.compactRange();
                     System.out.println("入库完成，等待优化");
+
+
                     {
-                        RocksIterator iterator = db.newIterator(columnFamilyHandles.get(1),
-                                new ReadOptions().setIterStartSeqnum(seqNo));
+                        Slice upperBound = new Slice(new byte[]{-1});
+
+                        final ReadOptions readOptions = new ReadOptions()
+                                .setIterStartSeqnum(seqNo)
+                                .setIterateUpperBound(new Slice(new byte[]{-1}));
+                        final RocksIterator iterator = db.newIterator(columnFamilyHandles.get(1),
+                                readOptions);
                         iterator.seekToFirst();
+
+
+                        int count = 0;
                         try (EnvOptions envOptions = new EnvOptions();
                              Options wOptions = new Options();
                              SstFileWriter writer = new SstFileWriter(envOptions, wOptions)) {
@@ -153,14 +179,18 @@ public class RocksDBStorage implements MetaStorage {
                             while (iterator.isValid()) {
                                 writer.put(iterator.key(), iterator.value());
                                 iterator.next();
+                                count++;
+                                System.gc();
+                                Thread.sleep(1000);
                             }
                             writer.finish();
                         }
+                        System.out.println("export " + count);
                     }
 
                     System.out.println("getLatestSequenceNumber " + db.getLatestSequenceNumber());
 
-                    for(ColumnFamilyHandle columnFamilyHandle : columnFamilyHandles) {
+                    for (ColumnFamilyHandle columnFamilyHandle : columnFamilyHandles) {
                         ColumnFamilyMetaData cfMetaData = db.getColumnFamilyMetaData(columnFamilyHandle);
                         System.out.println("columnFamily name " + new String(columnFamilyHandle.getName()));
                         System.out.println("fileCount: " + cfMetaData.fileCount());
@@ -214,7 +244,7 @@ public class RocksDBStorage implements MetaStorage {
 
     public static boolean keyInSstFile(SstFileMetaData sst, byte[] key) {
         AbstractComparator comparator = new BytewiseComparator(new ComparatorOptions());
-        boolean r =  comparator.compare(ByteBuffer.wrap(sst.smallestKey()), ByteBuffer.wrap(key)) <= 0 &&
+        boolean r = comparator.compare(ByteBuffer.wrap(sst.smallestKey()), ByteBuffer.wrap(key)) <= 0 &&
                 comparator.compare(ByteBuffer.wrap(sst.largestKey()), ByteBuffer.wrap(key)) > 0;
         return r;
     }
@@ -246,9 +276,6 @@ public class RocksDBStorage implements MetaStorage {
     }
 
 
-
-
-
     public static void testSplit(String[] args) throws RocksDBException {
 
         final String dbPath = args[0];
@@ -278,7 +305,6 @@ public class RocksDBStorage implements MetaStorage {
 
                 byte[] startKey = String.format("hello%06d", 10).getBytes();
                 byte[] endKey = String.format("hello%06d", 500).getBytes();
-
 
 
                 System.out.println("getLatestSequenceNumber " + db.getLatestSequenceNumber());
@@ -329,7 +355,7 @@ public class RocksDBStorage implements MetaStorage {
 
     private static boolean deleteDir(File dir) {
         if (dir.isDirectory()) {
-            for(File file : dir.listFiles()){
+            for (File file : dir.listFiles()) {
                 deleteDir(file);
             }
         }
