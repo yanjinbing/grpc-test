@@ -17,8 +17,8 @@ public class RocksDBStorage implements MetaStorage {
     private static byte[] value;
 
     static {
-        value = new byte[1024];
-        for (int i = 0; i < 1024; i++)
+        value = new byte[128];
+        for (int i = 0; i < 128; i++)
             value[i] = (byte) (i % 0x70);
     }
 
@@ -28,8 +28,26 @@ public class RocksDBStorage implements MetaStorage {
             System.exit(-1);
         }
         //testSplit(args);
-        testPut(args);
+        //testPut(args);
         //exportSST(args[0], 1);
+        testSST();
+    }
+
+    public static void testSST() throws RocksDBException {
+        String target = "/home/tmp/1.sst";
+        try (EnvOptions envOptions = new EnvOptions();
+             Options wOptions = new Options();
+             SstFileWriter writer = new SstFileWriter(envOptions, wOptions)) {
+            writer.open(target);
+            long start = System.currentTimeMillis();
+            for (int i = 0; i < 1000000; i++) {
+                byte[] key = String.format("%8d", i).getBytes();
+                writer.put(key, value);
+            }
+            System.out.println("time = " + (System.currentTimeMillis() - start));
+            writer.finish();
+            System.out.println("time = " + (System.currentTimeMillis() - start));
+        }
     }
 
     public static void exportSST(String dbPath, int partId) throws RocksDBException {
@@ -73,9 +91,7 @@ public class RocksDBStorage implements MetaStorage {
                      Options wOptions = new Options();
                      SstFileWriter writer = new SstFileWriter(envOptions, wOptions)) {
                     writer.open(target);
-
                     while (iterator.isValid()) {
-
                         byte[] key = iterator.key();
                         if (startSeqNum > 0)
                             key = Arrays.copyOfRange(iterator.key(), 0, iterator.key().length - kNumInternalBytes);
