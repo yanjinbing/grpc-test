@@ -5,6 +5,7 @@ import com.alipay.sofa.jraft.conf.Configuration;
 import com.alipay.sofa.jraft.core.Replicator;
 import com.alipay.sofa.jraft.entity.PeerId;
 import com.alipay.sofa.jraft.option.NodeOptions;
+import com.alipay.sofa.jraft.option.RaftOptions;
 import com.alipay.sofa.jraft.rpc.RaftRpcServerFactory;
 import com.alipay.sofa.jraft.rpc.RpcServer;
 import com.alipay.sofa.jraft.util.Utils;
@@ -61,8 +62,20 @@ public class RaftEngine {
             return;
         Node node = raftNodes.remove(groupId);
         node.shutdown();
-
     }
+
+    public void restartRaftNode(String groupId) {
+        if (!raftNodes.containsKey(groupId))
+            return;
+        Node node = raftNodes.remove(groupId);
+        NodeOptions options = node.getOptions();
+        node.shutdown();
+
+        options.getRaftOptions().setDisruptorBufferSize(1024);
+
+        startRaft(groupId, options);
+    }
+
 
     /**
      * 创建raft分组
@@ -79,7 +92,7 @@ public class RaftEngine {
         new File(metaPath).mkdirs();
         new File(snapPath).mkdirs();
         // 创建状态机
-        StateMachineImpl stateMachine = new StateMachineImpl(groupId);
+        StateMachineImpl stateMachine = new StateMachineImpl(groupId, this);
         Configuration initConf = new Configuration();
         initConf.parse(peersList);
         // 设置Node参数，包括日志存储路径和状态机实例
@@ -104,6 +117,9 @@ public class RaftEngine {
         nodeOptions.setElectionPriority(serverId.getPriority());
         nodeOptions.setRpcDefaultTimeout(5000);
 
+        RaftOptions raftOptions = nodeOptions.getRaftOptions();
+        raftOptions.setDisruptorBufferSize(16);
+
 /*
         nodeOptions.setServiceFactory(new DefaultJRaftServiceFactory(){
 
@@ -119,6 +135,11 @@ public class RaftEngine {
             }
         });
 */
+        startRaft(groupId, nodeOptions);
+    }
+
+    public void startRaft(String groupId, NodeOptions nodeOptions){
+
 
         // 构建raft组并启动raft
         RaftGroupService raftGroupService = new RaftGroupService(groupId, serverId, nodeOptions, rpcServer, true);
@@ -140,7 +161,7 @@ public class RaftEngine {
             }
         });
 
-        stateMachine.setNode(raftNode);
+        ((StateMachineImpl)nodeOptions.getFsm()).setNode(raftNode);
         raftNodes.put(groupId, raftNode);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             raftNode.shutdown();
@@ -149,6 +170,7 @@ public class RaftEngine {
         System.out.println("OK");
 
     }
+
     public Node getRaftNode(String groupId) throws Exception {
         if (!raftNodes.containsKey(groupId))
             throw new Exception("Do not found " + groupId);

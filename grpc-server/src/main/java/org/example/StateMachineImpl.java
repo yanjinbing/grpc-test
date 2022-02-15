@@ -27,11 +27,13 @@ public class StateMachineImpl extends StateMachineAdapter {
         return this.leaderTerm.get() > 0;
     }
 
+    private RaftEngine raftEngine;
     private String groupId;
     private Node node;
 
-    public StateMachineImpl(String groupId) {
+    public StateMachineImpl(String groupId, final RaftEngine engine) {
         this.groupId = groupId;
+        this.raftEngine = engine;
     }
 
     public void setNode(Node node) {
@@ -55,7 +57,8 @@ public class StateMachineImpl extends StateMachineAdapter {
                     input = new ObjectInputStream(new ByteArrayInputStream(iterator.getData().array()));
                     Operation op = (Operation) input.readObject();
                     System.out.println(groupId + " follower receive data " + op.getValue().length);
-                } catch (IOException | ClassNotFoundException e) {
+                    Thread.sleep(10000);
+                } catch (Exception e) {
                     e.printStackTrace();
                 } finally {
                     if (input != null) {
@@ -77,8 +80,11 @@ public class StateMachineImpl extends StateMachineAdapter {
 
     @Override
     public void onError(final RaftException e) {
-        System.out.println(groupId + " error " + e.getStatus());
+        System.out.println(groupId + " raft error " + e.getStatus());
         e.printStackTrace();
+
+        raftEngine.restartRaftNode(groupId);
+
     }
 
     @Override

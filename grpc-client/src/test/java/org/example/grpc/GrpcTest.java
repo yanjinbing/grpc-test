@@ -68,15 +68,15 @@ public class GrpcTest extends GrpcClientBase{
     @Test
     public void testBatchPut() throws InterruptedException {
         String groupId = "a1";
-        setBatchMode(a1[0], groupId);
+       // setBatchMode(a2[0], groupId);
 
         ExecutorService executor = new ThreadPoolExecutor(10, 10,
                 0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<Runnable>(100));
-        for(int i = 0; i<100; i++) {
+                new LinkedBlockingQueue<Runnable>(10000));
+        for (int i = 0; i < 100; i++) {
             int finalI = i;
             executor.execute(() -> {
-                sendOne(a1[0], groupId,
+                sendOne(a2[0], groupId,
                         ByteString.copyFromUtf8("batch" + finalI), ByteString.copyFromUtf8("Hello raft"));
 
             });
