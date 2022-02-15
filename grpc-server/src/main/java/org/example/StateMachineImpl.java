@@ -131,6 +131,7 @@ public class StateMachineImpl extends StateMachineAdapter {
         return true;
     }
 
+
     @Override
     public void onStopFollowing(final LeaderChangeContext ctx) {
         System.out.println(groupId + " stop follower");

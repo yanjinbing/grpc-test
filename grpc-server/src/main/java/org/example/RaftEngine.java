@@ -206,6 +206,9 @@ public class RaftEngine {
      * 获取Leader
      */
     public PeerId getLeader(String groupId) throws Exception {
+        Node node = getRaftNode(groupId);
+        System.out.println("Node state is " + node.getNodeState());
+
         return getRaftNode(groupId).getLeaderId();
     }
 

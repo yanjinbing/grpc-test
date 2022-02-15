@@ -13,7 +13,7 @@ public class GrpcTest extends GrpcClientBase{
     @Test
     public void getLeader(){
         String groupId = "a1";
-        System.out.println(getLeader(a2[0], groupId));
+        System.out.println(getLeader(a1[0], groupId));
     }
     @Test
     public void transferLeader(){

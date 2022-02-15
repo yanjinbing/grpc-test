@@ -9,10 +9,9 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 
-public class RocksDBStorage implements MetaStorage {
+public class RocksDBStorage {
 
     private static byte[] value;
 
@@ -80,6 +79,7 @@ public class RocksDBStorage implements MetaStorage {
                         if (startSeqNum > 0)
                             key = Arrays.copyOfRange(iterator.key(), 0, iterator.key().length - kNumInternalBytes);
                         writer.put(key, iterator.value());
+
                         iterator.next();
                     }
                     writer.finish();

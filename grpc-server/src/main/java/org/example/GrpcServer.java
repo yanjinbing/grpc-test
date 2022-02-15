@@ -22,6 +22,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Hello world!
@@ -32,6 +34,7 @@ public class GrpcServer {
     private RaftParams raftParams;
 
     private RaftEngine raftEngine = new RaftEngine();
+    private ExecutorService executorService;
     /**
      * 启动grpc服务
      */
@@ -53,8 +56,18 @@ public class GrpcServer {
             }
         });
         raftEngine.createRaftRpcServer(raftParams.raftAddr);
-        if (StringUtils.isNotBlank(raftParams.groupId))
-            raftEngine.startRaft(raftParams.groupId, raftParams.dataPath, raftParams.peersList);
+        executorService = Executors.newSingleThreadExecutor();
+        executorService.execute(()->{
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            if (StringUtils.isNotBlank(raftParams.groupId))
+                raftEngine.startRaft(raftParams.groupId, raftParams.dataPath, raftParams.peersList);
+        });
+
+
     }
 
     private void stop() {
