@@ -13,17 +13,17 @@ import java.util.List;
  * 快照同步rpc处理器，leader批量入库完成后，基于seqnum读取新增的kv,批量发送给follower.
  * @param <T>
  */
-public class SnapshotProcessor<T extends SnapshotProcessor.BaseRequest> implements RpcProcessor<T> {
+public class CmdProcessor<T extends CmdProcessor.BaseRequest> implements RpcProcessor<T> {
 
     public static void registerProcessor(final RpcServer rpcServer, final RaftEngine engine){
-        rpcServer.registerProcessor(new SnapshotProcessor<>(GetSnapshotRequest.class, engine));
-        rpcServer.registerProcessor(new SnapshotProcessor<>(TransSnapshotRequest.class, engine));
+        rpcServer.registerProcessor(new CmdProcessor<>(GetSnapshotRequest.class, engine));
+        rpcServer.registerProcessor(new CmdProcessor<>(TransSnapshotRequest.class, engine));
     }
 
     private final Class<?> requestClass;
     private final RaftEngine engine;
 
-    public SnapshotProcessor(Class<?> requestClass, RaftEngine engine) {
+    public CmdProcessor(Class<?> requestClass, RaftEngine engine) {
         this.requestClass = requestClass;
         this.engine = engine;
     }
@@ -58,6 +58,7 @@ public class SnapshotProcessor<T extends SnapshotProcessor.BaseRequest> implemen
     public abstract static class BaseRequest implements Serializable {
         public static final byte GET_SNAPSHOT = 0x01;
         public static final byte TRANS_SNAPSHOT = 0x02;
+        public static final byte REPORT_HEALTHY = 0x03;
 
         public abstract byte magic();
     }
@@ -108,6 +109,23 @@ public class SnapshotProcessor<T extends SnapshotProcessor.BaseRequest> implemen
 
     @Data
     public static class TransSnapshotResponse extends BaseResponse {
+    }
+
+    @Data
+    public static class HealthyRequest extends BaseRequest{
+        private int level;
+
+        @Override
+        public byte magic() {
+            return REPORT_HEALTHY;
+        }
+    }
+
+    @Data
+    public static class HealthyResponse extends BaseResponse{
+        private int level;
+
+
     }
 
     public enum Status implements Serializable{

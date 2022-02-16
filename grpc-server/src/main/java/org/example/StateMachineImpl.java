@@ -10,6 +10,7 @@ import com.alipay.sofa.jraft.error.RaftError;
 import com.alipay.sofa.jraft.error.RaftException;
 import com.alipay.sofa.jraft.storage.snapshot.SnapshotReader;
 import com.alipay.sofa.jraft.storage.snapshot.SnapshotWriter;
+import com.alipay.sofa.jraft.util.Utils;
 import io.grpc.netty.shaded.io.netty.buffer.ByteBufInputStream;
 import org.apache.commons.io.FileUtils;
 
@@ -57,7 +58,7 @@ public class StateMachineImpl extends StateMachineAdapter {
                     input = new ObjectInputStream(new ByteArrayInputStream(iterator.getData().array()));
                     Operation op = (Operation) input.readObject();
                     System.out.println(groupId + " follower receive data " + op.getValue().length);
-                    Thread.sleep(10000);
+                    Thread.sleep(1000);
                 } catch (Exception e) {
                     e.printStackTrace();
                 } finally {
@@ -82,8 +83,9 @@ public class StateMachineImpl extends StateMachineAdapter {
     public void onError(final RaftException e) {
         System.out.println(groupId + " raft error " + e.getStatus());
         e.printStackTrace();
-
-        raftEngine.restartRaftNode(groupId);
+        Utils.runInThread(() -> {
+            raftEngine.restartRaftNode(groupId);
+        });
 
     }
 

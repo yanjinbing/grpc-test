@@ -3,6 +3,8 @@ package org.example.grpc;
 import com.google.protobuf.ByteString;
 import org.junit.Test;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.*;
 
 public class GrpcTest extends GrpcClientBase{
@@ -10,11 +12,17 @@ public class GrpcTest extends GrpcClientBase{
     String[] a2 = {"127.0.0.1:8092","127.0.0.1:8082"};
     String[] a3 = {"127.0.0.1:8093","127.0.0.1:8083"};
 
-    @Test
-    public void getLeader(){
+    public String getLeader(){
         String groupId = "a1";
-        System.out.println(getLeader(a1[0], groupId));
+        String leader = getLeader(a1[0], groupId);
+        System.out.println("Leader is " + leader);
+        Map<String, String> peers = new HashMap<>();
+        peers.put(a1[1], a1[0]);
+        peers.put(a2[1], a2[0]);
+        peers.put(a3[1], a3[0]);
+        return peers.get(leader);
     }
+
     @Test
     public void transferLeader(){
         String groupId = "a1";
@@ -68,15 +76,16 @@ public class GrpcTest extends GrpcClientBase{
     @Test
     public void testBatchPut() throws InterruptedException {
         String groupId = "a1";
-       // setBatchMode(a2[0], groupId);
 
-        ExecutorService executor = new ThreadPoolExecutor(10, 10,
+        String leader = getLeader();
+
+        ExecutorService executor = new ThreadPoolExecutor(1, 1,
                 0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>(10000));
         for (int i = 0; i < 100; i++) {
             int finalI = i;
             executor.execute(() -> {
-                sendOne(a2[0], groupId,
+                sendOne(leader, groupId,
                         ByteString.copyFromUtf8("batch" + finalI), ByteString.copyFromUtf8("Hello raft"));
 
             });

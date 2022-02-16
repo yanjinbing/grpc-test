@@ -12,7 +12,7 @@ public class Server1 {
         GrpcServer.main(new String[]{
                 raftPath,
                 "8091",
-                "127.0.0.1:8081::100",
+                "127.0.0.1:8081",
                 peerList,
                 "a1"
         });

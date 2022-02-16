@@ -12,9 +12,8 @@ import com.alipay.sofa.jraft.util.Endpoint;
 import com.alipay.sofa.jraft.util.RpcFactoryHelper;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Future;
 
-public class SnapshotRpcClient {
+public class CmdClient {
     protected volatile RpcClient rpcClient;
     private RpcOptions rpcOptions;
 
@@ -28,9 +27,9 @@ public class SnapshotRpcClient {
     /**
      * 请求快照
      */
-    public CompletableFuture<SnapshotProcessor.GetSnapshotResponse>
-    getSnapshot(final String address, SnapshotProcessor.GetSnapshotRequest request ) {
-        ClosureAdapter<SnapshotProcessor.GetSnapshotResponse> response = new ClosureAdapter<>();
+    public CompletableFuture<CmdProcessor.GetSnapshotResponse>
+    getSnapshot(final String address, CmdProcessor.GetSnapshotRequest request ) {
+        ClosureAdapter<CmdProcessor.GetSnapshotResponse> response = new ClosureAdapter<>();
         internalCallAsyncWithRpc(JRaftUtils.getEndPoint(address), request, response);
         return response.future;
     }
@@ -38,14 +37,14 @@ public class SnapshotRpcClient {
     /**
      * 传输快照
      */
-    public CompletableFuture<SnapshotProcessor.TransSnapshotResponse>
-    transSnapshot(final String address, SnapshotProcessor.TransSnapshotRequest request) {
-        ClosureAdapter<SnapshotProcessor.TransSnapshotResponse> response = new ClosureAdapter<>();
+    public CompletableFuture<CmdProcessor.TransSnapshotResponse>
+    transSnapshot(final String address, CmdProcessor.TransSnapshotRequest request) {
+        ClosureAdapter<CmdProcessor.TransSnapshotResponse> response = new ClosureAdapter<>();
         internalCallAsyncWithRpc(JRaftUtils.getEndPoint(address), request, response);
         return response.future;
     }
 
-    private <V> void internalCallAsyncWithRpc(final Endpoint endpoint, final SnapshotProcessor.BaseRequest request,
+    private <V> void internalCallAsyncWithRpc(final Endpoint endpoint, final CmdProcessor.BaseRequest request,
                                   final ClosureAdapter<V> closure) {
         final InvokeContext invokeCtx = null;
         final InvokeCallback invokeCallback = new InvokeCallback() {
@@ -53,7 +52,7 @@ public class SnapshotRpcClient {
             @Override
             public void complete(final Object result, final Throwable err) {
                 if (err == null) {
-                    final SnapshotProcessor.BaseResponse response = (SnapshotProcessor.BaseResponse) result;
+                    final CmdProcessor.BaseResponse response = (CmdProcessor.BaseResponse) result;
                     closure.setResponse((V) response);
                 } else {
                     closure.failure(err);

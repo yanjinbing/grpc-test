@@ -10,7 +10,7 @@ public class Server3 {
         GrpcServer.main(new String[]{
                 "d:/test/raft/3",
                 "8093",
-                "127.0.0.1:8083::60",
+                "127.0.0.1:8083",
                 peerList,
                 "a1"
         });

@@ -11,7 +11,7 @@ public class Server2 {
         GrpcServer.main(new String[]{
                 "d:/test/raft/2",
                 "8092",
-                "127.0.0.1:8082::80",
+                "127.0.0.1:8082",
                 peerList,
                 "a1"
         });

@@ -11,20 +11,37 @@ import com.alipay.sofa.jraft.rpc.RpcServer;
 import com.alipay.sofa.jraft.util.Utils;
 import org.apache.commons.lang.StringUtils;
 import org.example.rpc.RaftNodeProcessor;
-import org.example.rpc.SnapshotProcessor;
+import org.example.rpc.CmdProcessor;
 
 import java.io.File;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class RaftEngine {
 
     private PeerId serverId;
     private RpcServer rpcServer;
     private Map<String, Node> raftNodes = new ConcurrentHashMap<>();
+    private Map<String, RaftMonitor> raftMonitors = new ConcurrentHashMap<>();
     private String basePath;
     private LogStorageImpl logStorage;
+    private ScheduledExecutorService executor;
+
+    public RaftEngine() {
+        this.executor = Executors.newScheduledThreadPool(2);
+        executor.scheduleWithFixedDelay(() -> {
+            raftMonitors.forEach((groupId, monitor)->{
+                if ( monitor.getLevel() != monitor.getLastLevel()) {
+                    System.out.println(monitor.toString());
+                }
+
+            });
+        }, 1, 1, TimeUnit.SECONDS);
+    }
     /**
      * 创建raft rpc server
      */
@@ -34,7 +51,7 @@ public class RaftEngine {
                 JRaftUtils.createExecutor("RAFT-RPC-", Utils.cpus() * 6),null);
         // 注册增加Raft node消息
         rpcServer.registerProcessor(new RaftNodeProcessor(this));
-        SnapshotProcessor.registerProcessor(rpcServer, this);
+        CmdProcessor.registerProcessor(rpcServer, this);
         rpcServer.init(null);
     }
 
@@ -62,18 +79,26 @@ public class RaftEngine {
             return;
         Node node = raftNodes.remove(groupId);
         node.shutdown();
+
     }
 
     public void restartRaftNode(String groupId) {
         if (!raftNodes.containsKey(groupId))
             return;
         Node node = raftNodes.remove(groupId);
-        NodeOptions options = node.getOptions();
-        node.shutdown();
 
-        options.getRaftOptions().setDisruptorBufferSize(1024);
+        System.out.println("Node is active " + node.getNodeState().isActive());
+        NodeOptions options = node.getOptions();
+      //  options.getRaftOptions().setDisruptorBufferSize(1024);
+        node.shutdown();
+        try {
+            node.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
         startRaft(groupId, options);
+
     }
 
 
@@ -116,7 +141,7 @@ public class RaftEngine {
         nodeOptions.setSharedTimerPool(true);
         nodeOptions.setElectionPriority(serverId.getPriority());
         nodeOptions.setRpcDefaultTimeout(5000);
-
+        nodeOptions.setEnableMetrics(true);
         RaftOptions raftOptions = nodeOptions.getRaftOptions();
         raftOptions.setDisruptorBufferSize(16);
 
@@ -139,7 +164,7 @@ public class RaftEngine {
     }
 
     public void startRaft(String groupId, NodeOptions nodeOptions){
-
+        System.out.println("Start raft " + groupId + " options " + nodeOptions);
 
         // 构建raft组并启动raft
         RaftGroupService raftGroupService = new RaftGroupService(groupId, serverId, nodeOptions, rpcServer, true);
@@ -166,6 +191,10 @@ public class RaftEngine {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             raftNode.shutdown();
         }));
+
+        raftMonitors.put(groupId, new RaftMonitor(
+                raftNode.getNodeMetrics().getMetricRegistry(), 1));
+
         //    NodeOptions ops = raftNode.getOptions();
         System.out.println("OK");
 
@@ -257,12 +286,12 @@ public class RaftEngine {
 
 
 
-    public SnapshotProcessor.Status getSnapshotFile(SnapshotProcessor.GetSnapshotRequest request){
+    public CmdProcessor.Status getSnapshotFile(CmdProcessor.GetSnapshotRequest request){
         System.out.println("getSnapshotFile request " + request);
-        return SnapshotProcessor.Status.OK;
+        return CmdProcessor.Status.OK;
     }
 
-    public SnapshotProcessor.Status receiveSnapshotFile(SnapshotProcessor.TransSnapshotRequest request){
+    public CmdProcessor.Status receiveSnapshotFile(CmdProcessor.TransSnapshotRequest request){
         String s = "";
         List<byte[]> data = request.getData();
         for(byte[] v : data){
@@ -271,6 +300,6 @@ public class RaftEngine {
         }
         System.out.println("receiveSnapshotFile request " + request);
         System.out.println("receiveSnapshotFile " + s);
-        return SnapshotProcessor.Status.OK;
+        return CmdProcessor.Status.OK;
     }
 }
