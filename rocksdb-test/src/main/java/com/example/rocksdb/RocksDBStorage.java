@@ -16,8 +16,8 @@ public class RocksDBStorage {
     private static byte[] value;
 
     static {
-        value = new byte[128];
-        for (int i = 0; i < 128; i++)
+        value = new byte[4096];
+        for (int i = 0; i < 4096; i++)
             value[i] = (byte) (i % 0x70);
     }
 
@@ -27,9 +27,9 @@ public class RocksDBStorage {
             System.exit(-1);
         }
         //testSplit(args);
-        //testPut(args);
+        testPut(args);
         //exportSST(args[0], 1);
-        testSST();
+      //  testSST();
     }
 
     public static void testSST() throws RocksDBException {
@@ -138,99 +138,59 @@ public class RocksDBStorage {
 
                 try {
 
-                    for (int i = 0; i < 1000; i++) {
+                    for (int i = 0; i < 10; i++) {
+                        db.put(columnFamilyHandles.get(1), String.format("second%06d", i).getBytes(), value);
+                    }
+                    long seqNo = db.getLatestSequenceNumber();
+                    for (int i = 0; i < 10000; i++) {
                         db.put(columnFamilyHandles.get(1), String.format("hello%06d", i).getBytes(), value);
                     }
                     for (int i = 0; i < 1000; i++) {
                         db.put(columnFamilyHandles.get(0), String.format("good%06d", i).getBytes(), value);
                     }
-                    long seqNo = db.getLatestSequenceNumber() + 1;
-
-
-                    for (int i = 0; i < 10; i++) {
-                        db.put(columnFamilyHandles.get(1), String.format("second%06d", i).getBytes(), value);
-                    }
-                    Snapshot snapshot = db.getSnapshot();
-                    for (int i = 3; i < 10; i++) {
-                        db.put(columnFamilyHandles.get(1), String.format("third%06d", i).getBytes(), value);
-                    }
-                    for (int i = 5; i < 10; i++) {
-                        db.put(columnFamilyHandles.get(1), String.format("third%06d", i).getBytes(), value);
-                    }
-
+                    seqNo = 1;
                     {
+                        System.out.println(seqNo);
                         RocksIterator iterator = db.newIterator(columnFamilyHandles.get(1),
-                                new ReadOptions().setSnapshot(snapshot)
-                                        .setIterStartSeqnum(seqNo));
+                                new ReadOptions().setIterStartSeqnum(seqNo));
                         iterator.seekToFirst();
+                        int cnt = 0;
                         while (iterator.isValid()) {
-                            byte[] key = iterator.key();
-                            System.out.println(new String(key, 0, key.length - 8) + " "
-                                    + Hex.encodeHexString(ByteBuffer.wrap(key, key.length - 8, 8)));
+                            cnt++;
                             iterator.next();
                         }
+                        System.out.println("1==" + cnt);
                     }
 
                     db.flush(new FlushOptions().setWaitForFlush(true), columnFamilyHandles);
                     db.compactRange();
+                    Thread.sleep(10000);
                     System.out.println("入库完成，等待优化");
 
 
                     {
-                        Slice upperBound = new Slice(new byte[]{-1});
 
                         final ReadOptions readOptions = new ReadOptions()
-                                .setIterStartSeqnum(seqNo)
-                                .setIterateUpperBound(new Slice(new byte[]{-1}));
+                                .setIterStartSeqnum(seqNo);
                         final RocksIterator iterator = db.newIterator(columnFamilyHandles.get(1),
                                 readOptions);
                         iterator.seekToFirst();
 
 
                         int count = 0;
-                        try (EnvOptions envOptions = new EnvOptions();
-                             Options wOptions = new Options();
-                             SstFileWriter writer = new SstFileWriter(envOptions, wOptions)) {
-                            writer.open("./tmp/" + "new.sst");
+
                             while (iterator.isValid()) {
-                                writer.put(iterator.key(), iterator.value());
+
                                 iterator.next();
                                 count++;
-                                System.gc();
-                                Thread.sleep(1000);
+
                             }
-                            writer.finish();
-                        }
+
+
                         System.out.println("export " + count);
                     }
 
                     System.out.println("getLatestSequenceNumber " + db.getLatestSequenceNumber());
-
-                    for (ColumnFamilyHandle columnFamilyHandle : columnFamilyHandles) {
-                        ColumnFamilyMetaData cfMetaData = db.getColumnFamilyMetaData(columnFamilyHandle);
-                        System.out.println("columnFamily name " + new String(columnFamilyHandle.getName()));
-                        System.out.println("fileCount: " + cfMetaData.fileCount());
-                        System.out.println("size: " + cfMetaData.size());
-                        for (LevelMetaData levelMetaData : cfMetaData.levels()) {
-                            System.out.println("\tlevel: " + levelMetaData.level());
-                            System.out.println("\tsize: " + levelMetaData.size());
-                            for (SstFileMetaData sst : levelMetaData.files()) {
-                                System.out.println("\t\tfileName: " + sst.fileName());
-                                System.out.println("\t\tpath: " + sst.path());
-                                System.out.println("\t\tsize: " + sst.size());
-                                System.out.println("\t\tsmallestSeqno: " + sst.smallestSeqno());
-                                System.out.println("\t\tlargestSeqno: " + sst.largestSeqno());
-                                System.out.println("\t\tsmallestKey: " + new String(sst.smallestKey()));
-                                System.out.println("\t\tlargestKey: " + new String(sst.largestKey()));
-                                System.out.println("\t\tnumReadsSampled: " + sst.numReadsSampled());
-                                System.out.println("\t\tbeingCompacted: " + sst.beingCompacted());
-                                System.out.println("\t\tnumEntries: " + sst.numEntries());
-                                System.out.println("\t\tnumDeletions: " + sst.numDeletions());
-                                System.out.println("\t\t----------------------------------------------------------");
-
-                            }
-                        }
-                    }
 
                     /*
                     批量入库过程，控制每层的文件数量，限制向高层合并。入库完成后，后台启动compact任务，修改参数，向高层合并。
