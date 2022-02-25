@@ -58,7 +58,7 @@ public class StateMachineImpl extends StateMachineAdapter {
                     input = new ObjectInputStream(new ByteArrayInputStream(iterator.getData().array()));
                     Operation op = (Operation) input.readObject();
                     System.out.println(groupId + " follower receive data " + op.getValue().length);
-                    Thread.sleep(1000);
+                 //   Thread.sleep(1000);
                 } catch (Exception e) {
                     e.printStackTrace();
                 } finally {

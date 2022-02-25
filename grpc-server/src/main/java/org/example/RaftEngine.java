@@ -195,6 +195,12 @@ public class RaftEngine {
         raftMonitors.put(groupId, new RaftMonitor(
                 raftNode.getNodeMetrics().getMetricRegistry(), 1));
 
+
+        Status status = raftNode.resetPeers(nodeOptions.getInitialConf());
+        if ( !status.isOk())
+            raftNode.changePeers(nodeOptions.getInitialConf(), status1 -> {
+                System.out.println("changepeers");
+            });
         //    NodeOptions ops = raftNode.getOptions();
         System.out.println("OK");
 
