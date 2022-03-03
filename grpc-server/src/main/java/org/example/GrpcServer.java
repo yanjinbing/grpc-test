@@ -45,6 +45,7 @@ public class GrpcServer {
                 .addService(new HelloWorldImpl(raftEngine))
                 .maxInboundMessageSize(1024 * 1024 * 10)
                 .maxInboundMetadataSize(1024 * 1024 * 10)
+
                 .build()
                 .start();
 
@@ -55,7 +56,9 @@ public class GrpcServer {
                 GrpcServer.this.stop();
             }
         });
-        raftEngine.createRaftRpcServer(raftParams.raftAddr);
+       raftEngine.createRaftRpcServer(raftParams.raftAddr);
+
+
         executorService = Executors.newSingleThreadExecutor();
         executorService.execute(()->{
             try {
@@ -97,22 +100,7 @@ public class GrpcServer {
 
         //实现grpc方法
         public void sayHello(HelloRequest request, StreamObserver<HelloReply> observer) {
-/*
-            observer.onNext(HelloReply.newBuilder().setMessage("response " + request.getKey()).build());
-            observer.onCompleted();
-
-            try {
-                Thread.sleep(100000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-*/
             System.out.println("Grpc thread " + Thread.currentThread().getName());
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
 
             ByteString key = request.getKey();
             ByteString value = request.getValue();
@@ -126,7 +114,7 @@ public class GrpcServer {
                 return;
             }
             try {
-                System.out.println("Group" + groupId + " recv data " + new String(request.getKey().toByteArray()));
+                System.out.println("Recv data " + groupId);
                 // 提交raft 任务
                 putTask(groupId, request.getKey().toByteArray(), request.getValue().toByteArray(),
                         new Closure() {

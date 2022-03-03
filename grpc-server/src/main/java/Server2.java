@@ -5,7 +5,7 @@ import java.io.IOException;
 
 public class Server2 {
     public static void main(String[] args) throws IOException, InterruptedException {
-        deleteDir(new File("d:/test/raft/2"));
+       deleteDir(new File("d:/test/raft/2"));
 
         String peerList = "127.0.0.1:8081::100,127.0.0.1:8082::80,127.0.0.1:8083::60";
         GrpcServer.main(new String[]{

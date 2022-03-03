@@ -14,7 +14,7 @@ public class GrpcTest extends GrpcClientBase{
 
     public String getLeader(){
         String groupId = "a1";
-        String leader = getLeader(a1[0], groupId);
+        String leader = getLeader(a2[0], groupId);
         System.out.println("Leader is " + leader);
         Map<String, String> peers = new HashMap<>();
         peers.put(a1[1], a1[0]);
@@ -69,8 +69,10 @@ public class GrpcTest extends GrpcClientBase{
     public void testSendOne(){
         String groupId = "a1";
         //setNormalMode(a1[0], groupId);
-        sendOne(a3[0],groupId,
-                ByteString.copyFromUtf8("Hello"), ByteString.copyFromUtf8("Hello raft"));
+        for(int i = 0; i<100; i++) {
+            sendOne(a1[0], groupId,
+                    ByteString.copyFromUtf8("Hello"), ByteString.copyFromUtf8("Hello raft"));
+        }
     }
 
     @Test
@@ -82,13 +84,13 @@ public class GrpcTest extends GrpcClientBase{
         ExecutorService executor = new ThreadPoolExecutor(1, 1,
                 0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>(10000));
-        for (int i = 0; i < 100; i++) {
-            int finalI = i;
-            executor.execute(() -> {
+        for (long i = 0; i < 100000000000L; i++) {
+            long finalI = i;
+          //  executor.execute(() -> {
                 sendOne(leader, groupId,
                         ByteString.copyFromUtf8("batch" + finalI), ByteString.copyFromUtf8("Hello raft"));
 
-            });
+          //  });
             System.out.println(" " + i);
         }
         executor.shutdown();
@@ -104,5 +106,11 @@ public class GrpcTest extends GrpcClientBase{
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+    }
+    @Test
+    public void test(){
+        long l = System.currentTimeMillis();
+        System.out.println(l);
+        System.out.println(String.format("%016x", l));
     }
 }
