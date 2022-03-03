@@ -58,14 +58,14 @@ public class SSTTest {
     public static void writeDb(String dbPath) throws RocksDBException {
         deleteDir(new File(dbPath));
         try (final ColumnFamilyOptions cfOpts = new ColumnFamilyOptions()
-                /*.setMinWriteBufferNumberToMerge(2)
+                .setMinWriteBufferNumberToMerge(2)
                 .setMaxWriteBufferNumber(4)
                 .setTargetFileSizeBase(64 * 1024)
                 .setWriteBufferSize(64 * 1024)
                 .setLevel0FileNumCompactionTrigger(2)
                 .setMaxBytesForLevelBase(128 * 1024)
                 .setMaxBytesForLevelMultiplier(2)
-                .setNumLevels(7)*/) {
+                .setNumLevels(7)) {
 
             // list of column family descriptors, first entry must always be default column family
             final List<ColumnFamilyDescriptor> cfDescriptors = Arrays.asList(

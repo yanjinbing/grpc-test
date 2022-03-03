@@ -45,6 +45,7 @@ public class GrpcServer {
                 .addService(new HelloWorldImpl(raftEngine))
                 .maxInboundMessageSize(1024 * 1024 * 10)
                 .maxInboundMetadataSize(1024 * 1024 * 10)
+
                 .build()
                 .start();
 
@@ -55,7 +56,9 @@ public class GrpcServer {
                 GrpcServer.this.stop();
             }
         });
-        raftEngine.createRaftRpcServer(raftParams.raftAddr);
+       raftEngine.createRaftRpcServer(raftParams.raftAddr);
+
+
         executorService = Executors.newSingleThreadExecutor();
         executorService.execute(()->{
             try {
@@ -97,6 +100,8 @@ public class GrpcServer {
 
         //实现grpc方法
         public void sayHello(HelloRequest request, StreamObserver<HelloReply> observer) {
+            System.out.println("Grpc thread " + Thread.currentThread().getName());
+
             ByteString key = request.getKey();
             ByteString value = request.getValue();
 

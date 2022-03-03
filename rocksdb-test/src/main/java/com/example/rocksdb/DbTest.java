@@ -11,7 +11,7 @@ import java.util.List;
 /**
  * Rocksdb 压力测试，测试多个rocksdb实例对内存的消耗
  */
-public class SSTTest2 {
+public class DbTest {
     static int kNumInternalBytes = 8;      //internal key 增加的8个字节后缀
     private static byte[] value;
 
@@ -22,17 +22,20 @@ public class SSTTest2 {
     }
 
 
-    static long memSize = 10 * 1024 * 1024 * 1024;
+    static long memSize = 1 * 1024 * 1024 * 1024;
     static long cacheSize = memSize;
     static WriteBufferManager bufferManager = new WriteBufferManager(memSize,
             new LRUCache(cacheSize));
 
-    public static void main(String[] args) throws RocksDBException {
+    static Env env = Env.getDefault();
+
+    public static void main(String[] args) throws RocksDBException, InterruptedException {
         if (args.length < 3) {
-            System.out.println("Param error : dataPath cfCount dataCount");
+            System.out.println("Param error : dataPath dbCount dataCount memSize");
+            System.exit(-1);
         }
         String dbPath = args[0];
-        int cfCount = Integer.parseInt(args[1]);
+        int dbCount = Integer.parseInt(args[1]);
         int dataCount = Integer.parseInt(args[2]);
         if (args.length > 3)
             memSize = Long.parseLong(args[3]) * 1024L * 1024L * 1024L;
@@ -40,7 +43,23 @@ public class SSTTest2 {
             cacheSize = Long.parseLong(args[4]) * 1024L * 1024L * 1024L;
         else
             cacheSize = memSize;
-        writeDb(dbPath, cfCount, dataCount);
+
+        Thread[] threads = new Thread[dbCount];
+        for (int i = 0; i < dbCount; i++) {
+            int finalI = i;
+            threads[i] = new Thread(() -> {
+                try {
+                    writeDb(dbPath + "/" + finalI, dataCount);
+                } catch (RocksDBException e) {
+                    e.printStackTrace();
+                }
+            });
+            threads[i].start();
+        }
+        System.out.println("等待结束");
+        for (int cfIdx = 0; cfIdx < dbCount; cfIdx++) {
+            threads[cfIdx].join();
+        }
     }
 
     public static void readSST(String source) throws RocksDBException {
@@ -72,19 +91,19 @@ public class SSTTest2 {
     }
 
 
-    public static void writeDb(String dbPath, int cfCount, int dataCount) throws RocksDBException {
+    public static void writeDb(String dbPath, int dataCount) throws RocksDBException {
         deleteDir(new File(dbPath));
 
         try (final ColumnFamilyOptions cfOpts = new ColumnFamilyOptions()) {
             // list of column family descriptors, first entry must always be default column family
             final List<ColumnFamilyDescriptor> cfDescriptors = new ArrayList<>();
             cfDescriptors.add(new ColumnFamilyDescriptor(RocksDB.DEFAULT_COLUMN_FAMILY, cfOpts));
-            for (int i = 0; i < cfCount; i++) {
+            for (int i = 0; i < 1; i++) {
                 cfDescriptors.add(new ColumnFamilyDescriptor(("cf" + i).getBytes(), cfOpts));
             }
             // a list which will hold the handles for the column families once the db is opened
             final List<ColumnFamilyHandle> columnFamilyHandles = new ArrayList<>();
-            System.out.println("start open db");
+
             long start = System.currentTimeMillis();
             try (final DBOptions options = new DBOptions()
                     .setCreateIfMissing(true)
@@ -92,29 +111,16 @@ public class SSTTest2 {
                     .setWriteBufferManager(bufferManager);
                  final RocksDB db = RocksDB.open(options, dbPath, cfDescriptors, columnFamilyHandles)) {
                 System.out.println("opened db " + (System.currentTimeMillis() - start));
-                Thread[] threads = new Thread[cfCount];
-
-                for (int cfIdx = 0; cfIdx < cfCount; cfIdx++) {
-                    int finalCfIdx = cfIdx;
-                    threads[cfIdx] = new Thread(() -> {
-                        for (int i = 0; i < dataCount; i++) {
-                            try {
-                                db.put(columnFamilyHandles.get(finalCfIdx),
-                                        String.format("cf%04d--%08d", finalCfIdx, i).getBytes(), value);
-                            } catch (RocksDBException e) {
-                                e.printStackTrace();
-                            }
-                        }
-                    });
-                    threads[cfIdx].start();
-                    System.out.println("Thread " + cfIdx);
-                }
-                System.out.println("等待结束");
-                for (int cfIdx = 0; cfIdx < cfCount; cfIdx++) {
-                    threads[cfIdx].join();
+                for (int i = 0; i < dataCount; i++) {
+                    try {
+                        db.put(columnFamilyHandles.get(1),
+                                String.format("cf%04d--%08d", 1, i).getBytes(), value);
+                    } catch (RocksDBException e) {
+                        e.printStackTrace();
+                    }
                 }
 
-            } catch (InterruptedException e) {
+            } catch (Exception e) {
                 e.printStackTrace();
             } finally {
                 // NOTE frees the column family handles before freeing the db
