@@ -39,13 +39,26 @@ public class RocksDBStorage {
              SstFileWriter writer = new SstFileWriter(envOptions, wOptions)) {
             writer.open(target);
             long start = System.currentTimeMillis();
-            for (int i = 0; i < 1000000; i++) {
+            for (int i = 0; i < 10000; i++) {
                 byte[] key = String.format("%8d", i).getBytes();
                 writer.put(key, value);
             }
             System.out.println("time = " + (System.currentTimeMillis() - start));
             writer.finish();
             System.out.println("time = " + (System.currentTimeMillis() - start));
+        }
+        try (Options options = new Options();
+             ReadOptions readOptions = new ReadOptions();
+             SstFileReader reader = new SstFileReader(options)
+        ) {
+            reader.open(target);
+            SstFileReaderIterator iterator = reader.newIterator(readOptions);
+            iterator.seekToFirst();
+            while (iterator.isValid()) {
+
+                iterator.next();
+            }
+
         }
     }
 
@@ -207,6 +220,7 @@ public class RocksDBStorage {
                     System.out.println("getLatestSequenceNumber " + db.getLatestSequenceNumber());
 
                     for (ColumnFamilyHandle columnFamilyHandle : columnFamilyHandles) {
+
                         ColumnFamilyMetaData cfMetaData = db.getColumnFamilyMetaData(columnFamilyHandle);
                         System.out.println("columnFamily name " + new String(columnFamilyHandle.getName()));
                         System.out.println("fileCount: " + cfMetaData.fileCount());

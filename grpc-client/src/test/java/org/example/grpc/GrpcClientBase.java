@@ -7,11 +7,19 @@ import io.grpc.stub.StreamObserver;
 
 public class GrpcClientBase {
 
+    static HelloWorldGrpc.HelloWorldBlockingStub stub = null;
+
     public HelloWorldGrpc.HelloWorldBlockingStub getStub(String address) {
-        ManagedChannel channel = ManagedChannelBuilder.forTarget(address).usePlaintext().build();
-        HelloWorldGrpc.HelloWorldBlockingStub stub = HelloWorldGrpc.newBlockingStub(channel);
-        stub.withMaxInboundMessageSize(1024 * 1024 * 10);
-        stub.withMaxOutboundMessageSize(1024 * 1024 * 10);
+        if ( stub == null) {
+            synchronized (GrpcClientBase.class) {
+                if ( stub == null) {
+                    ManagedChannel channel = ManagedChannelBuilder.forTarget(address).usePlaintext().build();
+                    stub = HelloWorldGrpc.newBlockingStub(channel);
+                    stub.withMaxInboundMessageSize(1024 * 1024 * 10);
+                    stub.withMaxOutboundMessageSize(1024 * 1024 * 10);
+                }
+            }
+        }
         return stub;
     }
 
