@@ -57,6 +57,19 @@ public class SSTTest {
 
     public static void writeDb(String dbPath) throws RocksDBException {
         deleteDir(new File(dbPath));
+        RocksDB.loadLibrary();
+        List<AbstractEventListener> listeners = new ArrayList<>();
+        listeners.add(new AbstractEventListener() {
+            @Override
+            public void onCompactionCompleted(RocksDB db, CompactionJobInfo compactionJobInfo) {
+                super.onCompactionCompleted(db, compactionJobInfo);
+                System.out.println("onCompactionCompleted " + db.getName());
+            }
+            @Override
+            public void onCompactionBegin(final RocksDB db, final CompactionJobInfo compactionJobInfo) {
+                System.out.println("onCompactionBegin " + db.getName());
+            }
+        });
         try (final ColumnFamilyOptions cfOpts = new ColumnFamilyOptions()
                 .setMinWriteBufferNumberToMerge(2)
                 .setMaxWriteBufferNumber(4)
@@ -65,6 +78,7 @@ public class SSTTest {
                 .setLevel0FileNumCompactionTrigger(2)
                 .setMaxBytesForLevelBase(128 * 1024)
                 .setMaxBytesForLevelMultiplier(2)
+
                 .setNumLevels(7)) {
 
             // list of column family descriptors, first entry must always be default column family
@@ -79,6 +93,7 @@ public class SSTTest {
             try (final DBOptions options = new DBOptions()
                     .setCreateIfMissing(true)
                     .setPreserveDeletes(true)
+                    .setListeners(listeners)
                     .setCreateMissingColumnFamilies(true)
                     .setWriteBufferManager(new WriteBufferManager(128*1024*1024,
                             new LRUCache(128*1024*1024)));
@@ -89,7 +104,7 @@ public class SSTTest {
                         db.put(columnFamilyHandles.get(1), String.format("good%06d", i).getBytes(), value);
                     }
 
-                    db.flush(new FlushOptions().setWaitForFlush(true), columnFamilyHandles);
+                   // db.flush(new FlushOptions().setWaitForFlush(true), columnFamilyHandles);
 
                   //  db.setPreserveDeletesSequenceNumber(db.getLatestSequenceNumber());
                     System.out.println(db.getLatestSequenceNumber());
@@ -106,6 +121,8 @@ public class SSTTest {
                     }
 
                     db.flush(new FlushOptions().setWaitForFlush(true), columnFamilyHandles);
+                 //   db.compactRange();
+                    Thread.sleep(10000);
                     System.out.println("入库完成, last seqNo " + db.getLatestSequenceNumber());
 
                     for (ColumnFamilyHandle columnFamilyHandle : columnFamilyHandles) {
@@ -130,6 +147,8 @@ public class SSTTest {
                         }
                     }
 
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 } finally {
                     // NOTE frees the column family handles before freeing the db
                     for (final ColumnFamilyHandle columnFamilyHandle : columnFamilyHandles) {

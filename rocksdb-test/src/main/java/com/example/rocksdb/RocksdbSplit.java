@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 public class RocksdbSplit {
 
@@ -23,7 +24,7 @@ public class RocksdbSplit {
 
         inputData(args);
         partitionCount = 4;
-        splitData(args);
+     //   splitData(args);
     }
 
     public static void inputData(String[] args) throws RocksDBException {
@@ -35,7 +36,7 @@ public class RocksdbSplit {
                 .setTargetFileSizeBase(64 * 1024)
                 .setWriteBufferSize(64 * 1024)
                 .setLevel0FileNumCompactionTrigger(2)
-                .setMaxBytesForLevelBase(128 * 1024)
+                .setMaxBytesForLevelBase(128 * 1024*1024)
                 .setMaxBytesForLevelMultiplier(2)
                 .setNumLevels(7)) {
 
@@ -52,15 +53,43 @@ public class RocksdbSplit {
                     .setCreateIfMissing(true)
                     .setCreateMissingColumnFamilies(true);
                  final RocksDB db = RocksDB.open(options, dbPath, cfDescriptors, columnFamilyHandles)) {
+
                 try {
-                    for (int i = 0; i < 10000; i++) {
+                    for (int i = 0; i < 100000; i++) {
                         db.put(columnFamilyHandles.get(0), getInnerKey(String.format("hello%06d", i)), value);
                     }
-                    for (int i = 0; i < 10000; i++) {
+                    for (int i = 0; i < 100000; i++) {
                         db.put(columnFamilyHandles.get(1), getInnerKey(String.format("good%06d", i)), value);
                     }
+                    System.out.println("rocksdb.size-all-mem-tables: " + db.getProperty("rocksdb.size-all-mem-tables"));
+                    System.out.println("rocksdb.estimate-table-readers-mem: " + db.getProperty("rocksdb.estimate-table-readers-mem"));
+                    System.out.println("rocksdb.cur-size-all-mem-tables: " + db.getProperty("rocksdb.cur-size-all-mem-tables"));
+                    System.out.println("rocksdb.block-cache-usage: " + db.getProperty("rocksdb.block-cache-usage"));
+
+                    List<RocksDB> dbs = new ArrayList<>();
+                    dbs.add(db);
+
+                    {
+                        Map<MemoryUsageType, Long> mem = MemoryUtil.getApproximateMemoryUsageByType(dbs, null);
+                        mem.forEach((k, v) -> {
+                            System.out.println(" " + k + ": " + v);
+                        });
+                    }
+
+                    System.out.println("Flush....");
                     db.flush(new FlushOptions().setWaitForFlush(true), columnFamilyHandles);
                     db.compactRange();
+                    System.out.println("rocksdb.size-all-mem-tables: " + db.getProperty("rocksdb.size-all-mem-tables"));
+                    System.out.println("rocksdb.estimate-table-readers-mem: " + db.getProperty("rocksdb.estimate-table-readers-mem"));
+                    System.out.println("rocksdb.cur-size-all-mem-tables: " + db.getProperty("rocksdb.cur-size-all-mem-tables"));
+                    System.out.println("rocksdb.block-cache-usage: " + db.getProperty("rocksdb.block-cache-usage"));
+
+                    {
+                        Map<MemoryUsageType, Long> mem = MemoryUtil.getApproximateMemoryUsageByType(dbs, null);
+                        mem.forEach((k, v) -> {
+                            System.out.println(" " + k + ": " + v);
+                        });
+                    }
 
                     int partitionId = 0;
                     // 迭代遍历
@@ -74,11 +103,14 @@ public class RocksdbSplit {
                             while (iterator.isValid()) {
                                 count++;
                                 iterator.next();
+
                             }
                             System.out.println(new String(columnFamilyHandle.getName()) + " put count = " + count);
                         }
                     }
                     System.out.println("入库完成");
+
+
 
                 } finally {
                     // NOTE frees the column family handles before freeing the db

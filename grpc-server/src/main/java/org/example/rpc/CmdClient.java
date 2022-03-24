@@ -44,6 +44,28 @@ public class CmdClient {
         return response.future;
     }
 
+    /**
+     * 传输快照
+     */
+    public CompletableFuture<CmdProcessor.InstallSnapshotResponse>
+    installSnapshot(final String address, CmdProcessor.InstallSnapshotRequest request) {
+        ClosureAdapter<CmdProcessor.InstallSnapshotResponse> response = new ClosureAdapter<>();
+        internalCallAsyncWithRpc(JRaftUtils.getEndPoint(address), request, response);
+        return response.future;
+    }
+
+    /**
+     * 传输快照
+     */
+    public CompletableFuture<CmdProcessor.InstallSnapshotOKResponse>
+    installSnapshotOK(final String address, CmdProcessor.InstallSnapshotOKRequest request) {
+        ClosureAdapter<CmdProcessor.InstallSnapshotOKResponse> response = new ClosureAdapter<>();
+        internalCallAsyncWithRpc(JRaftUtils.getEndPoint(address), request, response);
+        return response.future;
+    }
+
+
+
     private <V> void internalCallAsyncWithRpc(final Endpoint endpoint, final CmdProcessor.BaseRequest request,
                                   final ClosureAdapter<V> closure) {
         final InvokeContext invokeCtx = null;
