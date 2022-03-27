@@ -10,6 +10,15 @@ public class Test {
     }
 
     public static void main(String[] args) throws Exception {
+        boolean result = false;
+        for (int count = 0; count < 3 && !result; count++) {
+           result = false;
+
+           System.out.println(count);
+            Thread.yield();
+        }
+
+
         final CompletableFuture<Integer> f = compute();
         class Client extends Thread {
             CompletableFuture<Integer> f;

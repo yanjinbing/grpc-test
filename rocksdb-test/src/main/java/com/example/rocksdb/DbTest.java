@@ -22,7 +22,7 @@ public class DbTest {
     }
 
 
-    static long memSize = 1 * 1024 * 1024 * 1024;
+    static long memSize = 100 * 1024 * 1024;
     static long cacheSize = memSize;
     static WriteBufferManager bufferManager = new WriteBufferManager(memSize,
             new LRUCache(cacheSize));
@@ -49,7 +49,7 @@ public class DbTest {
             int finalI = i;
             threads[i] = new Thread(() -> {
                 try {
-                    writeDb(dbPath + "/" + finalI, dataCount);
+                    writeDb(dbPath + "/" + finalI, dataCount, 10);
                 } catch (RocksDBException e) {
                     e.printStackTrace();
                 }
@@ -91,14 +91,23 @@ public class DbTest {
     }
 
 
-    public static void writeDb(String dbPath, int dataCount) throws RocksDBException {
+    public static void writeDb(String dbPath, int dataCount, int cfCount) throws RocksDBException {
         deleteDir(new File(dbPath));
 
-        try (final ColumnFamilyOptions cfOpts = new ColumnFamilyOptions()) {
+        try (final ColumnFamilyOptions cfOpts = new ColumnFamilyOptions()
+                .setMinWriteBufferNumberToMerge(2)
+                .setMaxWriteBufferNumber(4)
+                .setTargetFileSizeBase(64 * 1024 * 1024)
+                .setWriteBufferSize(64 * 1024)
+                .setLevel0FileNumCompactionTrigger(2)
+                .setMaxBytesForLevelBase(128 * 1024 * 1024)
+                .setMaxBytesForLevelMultiplier(2)
+                .setNumLevels(7)
+        ) {
             // list of column family descriptors, first entry must always be default column family
             final List<ColumnFamilyDescriptor> cfDescriptors = new ArrayList<>();
             cfDescriptors.add(new ColumnFamilyDescriptor(RocksDB.DEFAULT_COLUMN_FAMILY, cfOpts));
-            for (int i = 0; i < 1; i++) {
+            for (int i = 0; i < cfCount; i++) {
                 cfDescriptors.add(new ColumnFamilyDescriptor(("cf" + i).getBytes(), cfOpts));
             }
             // a list which will hold the handles for the column families once the db is opened
@@ -111,12 +120,21 @@ public class DbTest {
                     .setWriteBufferManager(bufferManager);
                  final RocksDB db = RocksDB.open(options, dbPath, cfDescriptors, columnFamilyHandles)) {
                 System.out.println("opened db " + (System.currentTimeMillis() - start));
+
                 for (int i = 0; i < dataCount; i++) {
-                    try {
-                        db.put(columnFamilyHandles.get(1),
-                                String.format("cf%04d--%08d", 1, i).getBytes(), value);
-                    } catch (RocksDBException e) {
-                        e.printStackTrace();
+                    for (int j = 0; j < cfCount; j++) {
+                        WriteBatch batch = new WriteBatch();
+                        for(int c = 0; c< 10000; c++) {
+                            try {
+                                batch.put(columnFamilyHandles.get(j),
+                                        String.format("cf%04d--%08d", 1, i).getBytes(), value);
+                            } catch (RocksDBException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                        db.write(new WriteOptions(), batch);
+                        batch.clear();
+                        batch.close();
                     }
                 }
 

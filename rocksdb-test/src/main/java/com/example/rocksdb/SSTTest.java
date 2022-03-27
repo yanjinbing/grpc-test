@@ -22,9 +22,37 @@ public class SSTTest {
     }
 
     public static void main(String[] args) throws RocksDBException {
-        writeDb(args[0]);
+        writeSST();//writeDb(args[0]);
         //String sstFile = "D:/test/rocksdbtest/000014.sst";
         //readSST(sstFile);
+
+    }
+
+    public static void writeSST() throws RocksDBException {
+        String target = "/data/1.sst";
+        try (EnvOptions envOptions = new EnvOptions();
+             Options wOptions = new Options()
+                     .setCompressionOptions(new CompressionOptions().setEnabled(false))
+                     .setWriteBufferSize(64*1024*1024)
+                     .setAtomicFlush(true)
+                     .setDbWriteBufferSize(64*1024*1024)
+
+                     ;
+             SstFileWriter writer = new SstFileWriter(envOptions, wOptions)) {
+            writer.open(target);
+            long start = System.currentTimeMillis();
+            for (int i = 0; i < 1000000000; i++) {
+                byte[] key = String.format("%10d", i).getBytes();
+                writer.put(key, value);
+                if ( i % 10000 == 0){
+                    System.out.println(" " + i);
+                }
+            }
+            System.out.println("time = " + (System.currentTimeMillis() - start));
+            writer.finish();
+            System.out.println("time = " + (System.currentTimeMillis() - start));
+        }
+
     }
 
     public static void readSST(String source) throws RocksDBException {
