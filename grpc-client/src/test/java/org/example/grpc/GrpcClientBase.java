@@ -5,22 +5,25 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 public class GrpcClientBase {
 
-    static HelloWorldGrpc.HelloWorldBlockingStub stub = null;
-
+    private Map<String, HelloWorldGrpc.HelloWorldBlockingStub> stubs = new ConcurrentHashMap<>();
     public HelloWorldGrpc.HelloWorldBlockingStub getStub(String address) {
-        if ( stub == null) {
-            synchronized (GrpcClientBase.class) {
-                if ( stub == null) {
+        if ( !stubs.containsKey(address) ) {
+            synchronized (this) {
+                if ( !stubs.containsKey(address) ) {
                     ManagedChannel channel = ManagedChannelBuilder.forTarget(address).usePlaintext().build();
-                    stub = HelloWorldGrpc.newBlockingStub(channel);
+                    HelloWorldGrpc.HelloWorldBlockingStub stub = HelloWorldGrpc.newBlockingStub(channel);
                     stub.withMaxInboundMessageSize(1024 * 1024 * 10);
                     stub.withMaxOutboundMessageSize(1024 * 1024 * 10);
+                    stubs.put(address, stub);
                 }
             }
         }
-        return stub;
+        return stubs.get(address);
     }
 
     public HelloWorldGrpc.HelloWorldStub getStreamStub(String address){

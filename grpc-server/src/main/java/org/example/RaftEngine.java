@@ -2,24 +2,32 @@ package org.example;
 
 import com.alipay.sofa.jraft.*;
 import com.alipay.sofa.jraft.conf.Configuration;
+import com.alipay.sofa.jraft.core.NodeImpl;
 import com.alipay.sofa.jraft.core.Replicator;
+import com.alipay.sofa.jraft.core.TimerManager;
 import com.alipay.sofa.jraft.entity.PeerId;
+import com.alipay.sofa.jraft.entity.RaftOutter;
 import com.alipay.sofa.jraft.option.NodeOptions;
 import com.alipay.sofa.jraft.option.RaftOptions;
+import com.alipay.sofa.jraft.option.RpcOptions;
+import com.alipay.sofa.jraft.option.SnapshotCopierOptions;
 import com.alipay.sofa.jraft.rpc.RaftRpcServerFactory;
 import com.alipay.sofa.jraft.rpc.RpcServer;
+import com.alipay.sofa.jraft.storage.snapshot.SnapshotReader;
+import com.alipay.sofa.jraft.storage.snapshot.SnapshotWriter;
+import com.alipay.sofa.jraft.storage.snapshot.local.LocalSnapshotCopier;
+import com.alipay.sofa.jraft.storage.snapshot.local.LocalSnapshotStorage;
+import com.alipay.sofa.jraft.util.Endpoint;
 import com.alipay.sofa.jraft.util.Utils;
 import org.apache.commons.lang.StringUtils;
+import org.example.rpc.CmdClient;
 import org.example.rpc.RaftNodeProcessor;
 import org.example.rpc.CmdProcessor;
 
 import java.io.File;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 public class RaftEngine {
 
@@ -30,6 +38,7 @@ public class RaftEngine {
     private String basePath;
     private LogStorageImpl logStorage;
     private ScheduledExecutorService executor;
+    private CmdClient cmdClient;
 
     public RaftEngine() {
         this.executor = Executors.newScheduledThreadPool(2);
@@ -41,6 +50,10 @@ public class RaftEngine {
 
             });
         }, 1, 1, TimeUnit.SECONDS);
+
+
+        cmdClient = new CmdClient();
+        cmdClient.init(new RpcOptions());
     }
     /**
      * 创建raft rpc server
@@ -131,7 +144,7 @@ public class RaftEngine {
         nodeOptions.setSnapshotUri(snapPath);
         // 初始集群
         nodeOptions.setInitialConf(initConf);
-      //  nodeOptions.setElectionTimeoutMs(2000);
+        nodeOptions.setElectionTimeoutMs(5000);
         // 快照时间间隔
    //     nodeOptions.setSnapshotIntervalSecs(10);
         nodeOptions.setSharedVoteTimer(true);
@@ -143,7 +156,7 @@ public class RaftEngine {
         nodeOptions.setRpcDefaultTimeout(5000);
         nodeOptions.setEnableMetrics(true);
         RaftOptions raftOptions = nodeOptions.getRaftOptions();
-        raftOptions.setDisruptorBufferSize(16);
+        raftOptions.setDisruptorBufferSize(4096);
 
 /*
         nodeOptions.setServiceFactory(new DefaultJRaftServiceFactory(){
@@ -202,7 +215,7 @@ public class RaftEngine {
                 System.out.println("changepeers");
             });
         //    NodeOptions ops = raftNode.getOptions();
-        System.out.println("OK");
+        System.out.println("Start raft OK!!!");
 
     }
 
@@ -307,5 +320,100 @@ public class RaftEngine {
         System.out.println("receiveSnapshotFile request " + request);
         System.out.println("receiveSnapshotFile " + s);
         return CmdProcessor.Status.OK;
+    }
+
+    public CmdProcessor.Status installSnapshot(CmdProcessor.InstallSnapshotRequest request){
+        try {
+            System.out.println("Receive install snapshot " + request);
+            receiveSnapshot(request.getGraphName(), request.getUri());
+            CmdClient client = new CmdClient();
+            CmdProcessor.InstallSnapshotOKRequest request2 = new CmdProcessor.InstallSnapshotOKRequest();
+           // client.installSnapshotOK(request2);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return CmdProcessor.Status.OK;
+    }
+
+    public CmdProcessor.Status installSnapshotOK(CmdProcessor.InstallSnapshotOKRequest request){
+        return CmdProcessor.Status.OK;
+    }
+
+    public void createSnapshot(String groupId, long lastIndex) throws Exception {
+        String path = this.basePath + "/" + groupId;
+
+        Node node = getRaftNode(groupId);
+        Endpoint localAddr = node.getNodeId().getPeerId().getEndpoint();
+
+        final RaftOutter.SnapshotMeta.Builder metaBuilder = RaftOutter.SnapshotMeta.newBuilder() //
+                .setLastIncludedIndex(lastIndex) //
+                .setLastIncludedTerm(1);
+
+        LocalSnapshotStorage storage = new LocalSnapshotStorage(path, node.getRaftOptions());
+        storage.init(null);
+        storage.setServerAddr(localAddr);
+        SnapshotWriter writer = storage.create();
+        writer.saveMeta(metaBuilder.build());
+
+        node.getOptions().getFsm().onSnapshotSave(writer, status -> {
+            try {
+                System.out.println("save snapshot " + status);
+                writer.close();
+                SnapshotReader reader = storage.open();
+                reader.load();
+
+                CmdProcessor.InstallSnapshotRequest request = new CmdProcessor.InstallSnapshotRequest();
+                request.setGraphName(groupId);
+                request.setUri(reader.generateURIForCopy());
+                getPeers(groupId).forEach(peerId -> {
+                    if (!peerId.getEndpoint().equals(localAddr)) {
+                        System.out.println("Send install snapshot " + peerId.getEndpoint());
+                        try {
+                            cmdClient.installSnapshot(peerId.getEndpoint().toString(), request).get();
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+       // writer.addFile("file.txt");
+    }
+
+    public void receiveSnapshot(String groupId, String uri) throws Exception {
+        String path = this.basePath + "/" + groupId;
+        Node node = getRaftNode(groupId);
+        SnapshotStorageImpl storage = new SnapshotStorageImpl(path, node.getRaftOptions());
+
+        final LocalSnapshotCopier copier = new LocalSnapshotCopier();
+        copier.setStorage(storage);
+        copier.setSnapshotThrottle(null);
+        copier.setFilterBeforeCopyRemote(true);
+        if (!copier.init(uri, newCopierOpts((NodeImpl) node))) {
+            System.out.println("Error");
+        }
+        copier.start();
+        copier.join();
+        if (copier.getCode() != 0)
+            System.out.println("copier error " + copier.getErrorMsg());
+        copier.close();
+        if (copier.getCode() != 0)
+            System.out.println("copier close error " + copier.getErrorMsg());
+        SnapshotReader reader = copier.getReader();
+        reader.listFiles().forEach(s -> {
+            System.out.println(s);
+        });
+        reader.close();
+    }
+
+    private SnapshotCopierOptions newCopierOpts(NodeImpl node) {
+        final SnapshotCopierOptions copierOpts = new SnapshotCopierOptions();
+        copierOpts.setNodeOptions(node.getOptions());
+        copierOpts.setRaftClientService(node.getRpcService());
+        copierOpts.setTimerManager(node.getTimerManager());
+        copierOpts.setRaftOptions(node.getRaftOptions());
+        return copierOpts;
     }
 }

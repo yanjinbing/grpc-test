@@ -46,6 +46,7 @@ public class GrpcServer {
                 .maxInboundMessageSize(1024 * 1024 * 10)
                 .maxInboundMetadataSize(1024 * 1024 * 10)
 
+
                 .build()
                 .start();
 
@@ -100,12 +101,8 @@ public class GrpcServer {
 
         //实现grpc方法
         public void sayHello(HelloRequest request, StreamObserver<HelloReply> observer) {
-            System.out.println("Grpc thread " + Thread.currentThread().getName());
-
-            ByteString key = request.getKey();
-            ByteString value = request.getValue();
-
-                //创建任务，发送给其他peer
+            System.out.println("Grpc thread " + Thread.currentThread().getId());
+            //创建任务，发送给其他peer
             String groupId = request.getGroupId();
 
             if (!engine.isLeader(groupId)) {
@@ -114,7 +111,6 @@ public class GrpcServer {
                 return;
             }
             try {
-                System.out.println("Recv data " + groupId);
                 // 提交raft 任务
                 putTask(groupId, request.getKey().toByteArray(), request.getValue().toByteArray(),
                         new Closure() {
@@ -124,6 +120,8 @@ public class GrpcServer {
                                 observer.onCompleted();
                             }
                         });
+
+                engine.createSnapshot(groupId, 11);
             } catch (Exception e) {
                 observer.onError(io.grpc.Status.fromThrowable(e).asException());
                 observer.onCompleted();

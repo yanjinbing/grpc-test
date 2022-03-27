@@ -18,6 +18,8 @@ public class CmdProcessor<T extends CmdProcessor.BaseRequest> implements RpcProc
     public static void registerProcessor(final RpcServer rpcServer, final RaftEngine engine){
         rpcServer.registerProcessor(new CmdProcessor<>(GetSnapshotRequest.class, engine));
         rpcServer.registerProcessor(new CmdProcessor<>(TransSnapshotRequest.class, engine));
+        rpcServer.registerProcessor(new CmdProcessor<>(InstallSnapshotRequest.class, engine));
+        rpcServer.registerProcessor(new CmdProcessor<>(InstallSnapshotOKRequest.class, engine));
     }
 
     private final Class<?> requestClass;
@@ -46,6 +48,20 @@ public class CmdProcessor<T extends CmdProcessor.BaseRequest> implements RpcProc
                 rpcCtx.sendResponse(response);
                 break;
             }
+            case BaseRequest.INSTALL_SNAPSHOT:{
+                Status status = engine.installSnapshot((InstallSnapshotRequest) request);
+                InstallSnapshotResponse response = new InstallSnapshotResponse();
+                response.setStatus(status);
+                rpcCtx.sendResponse(response);
+                break;
+            }
+            case BaseRequest.INSTALL_SNAPSHOT_OK:{
+                Status status = engine.installSnapshotOK((InstallSnapshotOKRequest) request);
+                InstallSnapshotOKResponse response = new InstallSnapshotOKResponse();
+                response.setStatus(status);
+                rpcCtx.sendResponse(response);
+                break;
+            }
             default:
         }
     }
@@ -59,6 +75,8 @@ public class CmdProcessor<T extends CmdProcessor.BaseRequest> implements RpcProc
         public static final byte GET_SNAPSHOT = 0x01;
         public static final byte TRANS_SNAPSHOT = 0x02;
         public static final byte REPORT_HEALTHY = 0x03;
+        public static final byte INSTALL_SNAPSHOT = 0x04;
+        public static final byte INSTALL_SNAPSHOT_OK = 0x05;
 
         public abstract byte magic();
     }
@@ -86,6 +104,46 @@ public class CmdProcessor<T extends CmdProcessor.BaseRequest> implements RpcProc
 
     @Data
     public static class GetSnapshotResponse extends BaseResponse {
+        private long seqNum;    // 最新的seqnum
+    }
+
+    /**
+     * Follower发起的获取文件请求
+     */
+    @Data
+    public static class InstallSnapshotRequest extends BaseRequest {
+        private String graphName;
+        private int partitionId;
+        private String uri;        // 开始seqnum
+
+        @Override
+        public byte magic() {
+            return INSTALL_SNAPSHOT;
+        }
+    }
+
+    @Data
+    public static class InstallSnapshotResponse extends BaseResponse {
+        private long seqNum;    // 最新的seqnum
+    }
+
+    /**
+     * Follower发起的获取文件请求
+     */
+    @Data
+    public static class InstallSnapshotOKRequest extends BaseRequest {
+        private String graphName;
+        private int partitionId;
+        private String uri;        // 开始seqnum
+
+        @Override
+        public byte magic() {
+            return INSTALL_SNAPSHOT_OK;
+        }
+    }
+
+    @Data
+    public static class InstallSnapshotOKResponse extends BaseResponse {
         private long seqNum;    // 最新的seqnum
     }
 
