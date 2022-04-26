@@ -3,10 +3,13 @@ package org.example.grpc;
 import com.google.protobuf.ByteString;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.netty.shaded.io.netty.util.concurrent.CompleteFuture;
 import io.grpc.stub.StreamObserver;
 
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
 
 public class GrpcClientBase {
 
@@ -184,30 +187,32 @@ public class GrpcClientBase {
      * @param address
      * @param id
      */
-    public void scan(String address, String id){
+    public Future scan(String address, String id){
+
+        CompletableFuture future = new CompletableFuture<>();
         ScanRequest request = ScanRequest.newBuilder().setId(id).build();
         StreamObserver<ScanRequest> requestStream = getStreamStub(address).scan(new StreamObserver<ScanResponse>() {
             @Override
             public void onNext(ScanResponse value) {
-                System.out.println(value.getData().toStringUtf8());
-                try {
-                    Thread.sleep(10000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
+                System.out.println("scan receive " + value.getData().toStringUtf8());
+
             }
 
             @Override
             public void onError(Throwable t) {
-
+                future.cancel(true);
+                t.printStackTrace();
             }
 
             @Override
             public void onCompleted() {
-
+                future.complete(null);
+                System.out.println("scan receive onCompleted");
             }
         });
+
         requestStream.onNext(request);
         requestStream.onCompleted();
+        return future;
     }
 }
