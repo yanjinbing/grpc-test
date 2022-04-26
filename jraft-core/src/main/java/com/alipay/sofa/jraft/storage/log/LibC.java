@@ -25,7 +25,8 @@ import com.sun.jna.Pointer;
 /**
  * Moved from rocketmq.
  *
- *  https://raw.githubusercontent.com/apache/rocketmq/master/store/src/main/java/org/apache/rocketmq/store/util/LibC.java
+ *  https://raw.githubusercontent.com/apache/rocketmq/master/store/src/
+ *  main/java/org/apache/rocketmq/store/util/LibC.java
  * @author boyan(boyan@antfin.com)
  *
  */

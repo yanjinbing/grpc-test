@@ -33,6 +33,7 @@ import com.alipay.sofa.jraft.rpc.RpcClient;
 import com.alipay.sofa.jraft.rpc.impl.core.ClientServiceConnectionEventProcessor;
 import com.alipay.sofa.jraft.util.Endpoint;
 import com.alipay.sofa.jraft.util.Requires;
+import com.alipay.sofa.jraft.util.ThreadHelper;
 
 /**
  * Bolt rpc client impl.
@@ -54,8 +55,12 @@ public class BoltRpcClient implements RpcClient {
     @Override
     public boolean init(final RpcOptions opts) {
         rpcClient.option(BoltClientOption.NETTY_FLUSH_CONSOLIDATION, true);
-        this.rpcClient.initWriteBufferWaterMark(BoltRaftRpcFactory.CHANNEL_WRITE_BUF_LOW_WATER_MARK,
-            BoltRaftRpcFactory.CHANNEL_WRITE_BUF_HIGH_WATER_MARK);
+        this.rpcClient.initWriteBufferWaterMark(opts == null ?
+                        BoltRaftRpcFactory.CHANNEL_WRITE_BUF_LOW_WATER_MARK :
+                        opts.getChannelWriteBufLowWaterMark(),
+                opts == null ?
+                        BoltRaftRpcFactory.CHANNEL_WRITE_BUF_HIGH_WATER_MARK :
+                        opts.getChannelWriteBufHighWaterMark());
         this.rpcClient.enableReconnectSwitch();
         this.rpcClient.startup();
         return true;
@@ -69,13 +74,24 @@ public class BoltRpcClient implements RpcClient {
     @Override
     public boolean checkConnection(final Endpoint endpoint) {
         Requires.requireNonNull(endpoint, "endpoint");
-        return this.rpcClient.checkConnection(endpoint.toString());
+        boolean result = false;
+        for (int count = 0; count < 3 && !result; count++) {
+            result = this.rpcClient.checkConnection(endpoint.toString());
+            ThreadHelper.sleep(count * 5);
+        }
+        return result;
     }
 
     @Override
     public boolean checkConnection(final Endpoint endpoint, final boolean createIfAbsent) {
         Requires.requireNonNull(endpoint, "endpoint");
-        return this.rpcClient.checkConnection(endpoint.toString(), createIfAbsent, true);
+
+        boolean result = false;
+        for (int count = 0; count < 3 && !result; count++) {
+            result = this.rpcClient.checkConnection(endpoint.toString(), createIfAbsent, true);
+            ThreadHelper.sleep(count * 5);
+        }
+        return result;
     }
 
     @Override

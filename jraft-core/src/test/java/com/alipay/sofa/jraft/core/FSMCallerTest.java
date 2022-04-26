@@ -238,7 +238,7 @@ public class FSMCallerTest {
 
     @Test
     public void testOnStartStopFollowing() throws Exception {
-        final LeaderChangeContext ctx = new LeaderChangeContext(null, 11, Status.OK());
+        final LeaderChangeContext ctx = new LeaderChangeContext(null, "group_0", 11, Status.OK());
         this.fsmCaller.onStartFollowing(ctx);
         this.fsmCaller.flush();
         Mockito.verify(this.fsm).onStartFollowing(ctx);

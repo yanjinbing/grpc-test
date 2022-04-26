@@ -37,6 +37,8 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
+
+import com.google.protobuf.Message;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,9 +77,7 @@ public final class Utils {
     /**
      * Default jraft closure executor pool maximum size.
      */
-    public static final int           MAX_CLOSURE_EXECUTOR_POOL_SIZE      = SystemPropertyUtil.getInt(
-                                                                              "jraft.closure.threadpool.size.max",
-                                                                              Math.max(100, cpus() * 5));
+    public static final int           MAX_CLOSURE_EXECUTOR_POOL_SIZE      = 4096;
 
     /**
      * Default jraft append-entries executor(send) pool size.
@@ -125,6 +125,11 @@ public final class Utils {
 
     private static final Pattern      GROUP_ID_PATTER                     = Pattern
                                                                               .compile("^[a-zA-Z][a-zA-Z0-9\\-_]*$");
+
+    /**
+     * max description length of message string to be logged
+     */
+    private static final int     MAX_MESSAGE_DESC_LEN       = 300;
 
     public static void verifyGroupId(final String groupId) {
         if (StringUtils.isBlank(groupId)) {
@@ -485,5 +490,19 @@ public final class Utils {
         } else {
             return StringUtils.splitPreserveAllTokens(s, ':');
         }
+    }
+
+    /**
+     * truncate message string if it is too large
+     * @param msg
+     * @return truncated message string
+     */
+    public static String getMessageDesc(final Message msg) {
+        String reqStr = msg.toString();
+        if (reqStr.length() > MAX_MESSAGE_DESC_LEN) {
+            reqStr = reqStr.substring(0, MAX_MESSAGE_DESC_LEN) + " ...";
+        }
+        reqStr = reqStr.replaceAll("\n", " ");
+        return reqStr;
     }
 }

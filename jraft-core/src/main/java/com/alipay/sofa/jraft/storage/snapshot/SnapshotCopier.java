@@ -42,6 +42,10 @@ public abstract class SnapshotCopier extends Status implements Closeable {
     public abstract void join() throws InterruptedException;
 
     /**
+     * 等待copier线程执行结束，，此处为了解决 cancel方法只是发起结束命令，join返回后线程并没有退出
+     */
+    public abstract void waitFinished() throws InterruptedException;
+    /**
      * Start the copy job.
      */
     public abstract void start();

@@ -55,6 +55,17 @@ public class RpcOptions {
      */
     private MetricRegistry metricRegistry;
 
+
+
+    /**
+     * Set the write buffer water mark of netty. If it is 0, take the environment variable respectively
+     *     "bolt.channel_write_buf_high_water_mark"     *
+     *     "bolt.channel_write_buf_low_water_mark"
+     */
+    private int channelWriteBufLowWaterMark         = 256 * 1024;
+    private int channelWriteBufHighWaterMark        = 512 * 1024;
+
+
     public int getRpcConnectTimeoutMs() {
         return this.rpcConnectTimeoutMs;
     }
@@ -102,12 +113,29 @@ public class RpcOptions {
     public void setMetricRegistry(MetricRegistry metricRegistry) {
         this.metricRegistry = metricRegistry;
     }
+    public int getChannelWriteBufLowWaterMark() {
+        return channelWriteBufLowWaterMark;
+    }
 
+    public void setChannelWriteBufLowWaterMark(int channelWriteBufLowWaterMark) {
+        this.channelWriteBufLowWaterMark = channelWriteBufLowWaterMark;
+    }
+
+    public int getChannelWriteBufHighWaterMark() {
+        return channelWriteBufHighWaterMark;
+    }
+
+    public void setChannelWriteBufHighWaterMark(int channelWriteBufHighWaterMark) {
+        this.channelWriteBufHighWaterMark = channelWriteBufHighWaterMark;
+    }
     @Override
     public String toString() {
         return "RpcOptions{" + "rpcConnectTimeoutMs=" + rpcConnectTimeoutMs + ", rpcDefaultTimeout="
-               + rpcDefaultTimeout + ", rpcInstallSnapshotTimeout=" + rpcInstallSnapshotTimeout
-               + ", rpcProcessorThreadPoolSize=" + rpcProcessorThreadPoolSize + ", enableRpcChecksum="
-               + enableRpcChecksum + ", metricRegistry=" + metricRegistry + '}';
+                + rpcDefaultTimeout + ", rpcInstallSnapshotTimeout=" + rpcInstallSnapshotTimeout
+                + ", rpcProcessorThreadPoolSize=" + rpcProcessorThreadPoolSize + ", enableRpcChecksum="
+                + enableRpcChecksum + ", metricRegistry=" + metricRegistry
+                + ", channelWriteBufLowWaterMark=" + channelWriteBufLowWaterMark
+                + ", channelWriteBufHighWaterMark=" + channelWriteBufHighWaterMark
+                + '}';
     }
 }

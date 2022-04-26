@@ -19,6 +19,8 @@ package com.alipay.sofa.jraft.option;
 import com.alipay.sofa.jraft.util.Copiable;
 import com.alipay.sofa.jraft.util.RpcFactoryHelper;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * Raft options.
  *
@@ -61,13 +63,23 @@ public class RaftOptions implements Copiable<RaftOptions> {
      * If the timeout happens, it may halt the node.
      * */
     private int            disruptorPublishEventWaitTimeoutSecs = 10;
+    /** The threshold to enable backpressure of internal disruptor for Node/FSMCaller/LogManager etc.
+     *  If the ratio of remaining capacity in buffer size is less than the threshold,
+     *  it will sleep for a while before publishing events.
+     *  */
+    private double            disruptorBackPressureThreshold      = 0.5;
+    /** The maximum sleep time when backpressure enabled in internal disruptor for Node/FSMCaller/LogManager etc. */
+    private double            disruptorBackPressureMaxSleepMS      = 1000;
     /**
      *  When true, validate log entry checksum when transferring the log entry from disk or network, default is false.
      *  If true, it would hurt the performance of JRAft but gain the data safety.
      *  @since 1.2.6
      */
     private boolean        enableLogEntryChecksum               = false;
-
+    /** The maximum byte size of log allowed by user. */
+    private long            maxLogSize                          = 100 * 1024 * 1024;
+    /** The ratio of exponential approximation for average size of log entry. */
+    private double          aveLogEntrySizeRatio                = 0.95;
     /**
      * ReadOnlyOption specifies how the read only request is processed.
      *
@@ -87,6 +99,18 @@ public class RaftOptions implements Copiable<RaftOptions> {
      */
     private boolean        stepDownWhenVoteTimedout             = true;
 
+
+
+    // Force log truncation to snapshot
+    private AtomicBoolean  truncateLog  = new AtomicBoolean(false);
+
+    public boolean getTruncateLog() {
+        return truncateLog.get();
+    }
+
+    public void setTruncateLog(boolean truncateLog) {
+        this.truncateLog.set(truncateLog);
+    }
     public boolean isStepDownWhenVoteTimedout() {
         return this.stepDownWhenVoteTimedout;
     }
@@ -101,6 +125,38 @@ public class RaftOptions implements Copiable<RaftOptions> {
 
     public void setDisruptorPublishEventWaitTimeoutSecs(final int disruptorPublishEventWaitTimeoutSecs) {
         this.disruptorPublishEventWaitTimeoutSecs = disruptorPublishEventWaitTimeoutSecs;
+    }
+
+    public double getDisruptorBackPressureThreshold() {
+        return disruptorBackPressureThreshold;
+    }
+
+    public void setDisruptorBackPressureThreshold(double disruptorBackPressureThreshold) {
+        this.disruptorBackPressureThreshold = disruptorBackPressureThreshold;
+    }
+
+    public double getDisruptorBackPressureMaxSleepMS() {
+        return disruptorBackPressureMaxSleepMS;
+    }
+
+    public void setDisruptorBackPressureMaxSleepMS(double disruptorBackPressureMaxSleepMS) {
+        this.disruptorBackPressureMaxSleepMS = disruptorBackPressureMaxSleepMS;
+    }
+
+    public long getMaxLogSize() {
+        return maxLogSize;
+    }
+
+    public void setMaxLogSize(long maxLogSize) {
+        this.maxLogSize = maxLogSize;
+    }
+
+    public double getAveLogEntrySizeRatio() {
+        return aveLogEntrySizeRatio;
+    }
+
+    public void setAveLogEntrySizeRatio(double aveLogEntrySizeRatio) {
+        this.aveLogEntrySizeRatio = aveLogEntrySizeRatio;
     }
 
     public boolean isEnableLogEntryChecksum() {
@@ -245,6 +301,8 @@ public class RaftOptions implements Copiable<RaftOptions> {
         raftOptions.setSync(this.sync);
         raftOptions.setSyncMeta(this.syncMeta);
         raftOptions.setOpenStatistics(this.openStatistics);
+        raftOptions.setMaxLogSize(this.maxLogSize);
+        raftOptions.setAveLogEntrySizeRatio(this.aveLogEntrySizeRatio);
         raftOptions.setReplicatorPipeline(this.replicatorPipeline);
         raftOptions.setMaxReplicatorInflightMsgs(this.maxReplicatorInflightMsgs);
         raftOptions.setDisruptorBufferSize(this.disruptorBufferSize);
@@ -265,6 +323,8 @@ public class RaftOptions implements Copiable<RaftOptions> {
                + ", maxReplicatorInflightMsgs=" + this.maxReplicatorInflightMsgs + ", disruptorBufferSize="
                + this.disruptorBufferSize + ", disruptorPublishEventWaitTimeoutSecs="
                + this.disruptorPublishEventWaitTimeoutSecs + ", enableLogEntryChecksum=" + this.enableLogEntryChecksum
-               + ", readOnlyOptions=" + this.readOnlyOptions + '}';
+               + ", readOnlyOptions=" + this.readOnlyOptions + ", maxLogSize=" + this.maxLogSize
+               + ", aveLogEntrySizeRatio=" + this.aveLogEntrySizeRatio
+               + '}';
     }
 }

@@ -31,6 +31,7 @@ import com.alipay.sofa.jraft.error.LogIndexOutOfBoundsException;
 import com.alipay.sofa.jraft.error.LogNotFoundException;
 import com.alipay.sofa.jraft.option.NodeOptions;
 import com.alipay.sofa.jraft.option.RaftOptions;
+import com.alipay.sofa.jraft.storage.LogManager;
 import com.alipay.sofa.jraft.util.Describer;
 
 /**
@@ -333,4 +334,34 @@ public interface Node extends Lifecycle<NodeOptions>, Describer {
      * @since 1.3.8
      */
     State getNodeState();
+
+    /**
+     * Get the log manager of this node.
+     * @return
+     */
+    LogManager getLogManager();
+
+    /**
+     * Get the replicator group the node joined in.
+     * @return
+     */
+    ReplicatorGroup getReplicatorGroup();
+
+    /**
+     * Get current configuration.
+     * @return
+     */
+    Configuration getCurrentConf();
+
+    /**
+     * Whether all replicators' state are Replicate.
+     * @return
+     */
+    boolean isAllReplicatorsReplicated();
+
+    /**
+     * Whether all replicators catch up.
+     * @return
+     */
+    boolean isAllReplicatorsCatchUp(long margin);
 }

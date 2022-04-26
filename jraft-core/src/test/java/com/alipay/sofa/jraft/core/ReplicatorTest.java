@@ -784,7 +784,7 @@ public class ReplicatorTest {
     public void testGetNextSendIndex() {
         final Replicator r = getReplicator();
         assertEquals(-1, r.getNextSendIndex());
-        r.resetInflights();
+        r.resetInflights("for-test");
         assertEquals(11, r.getNextSendIndex());
         mockSendEntries(3);
         r.sendEntries();

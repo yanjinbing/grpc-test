@@ -176,6 +176,9 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
         @Override
         public void run(final Status status) {
             onSnapshotLoadDone(status);
+            if(this.reader != null) {
+                Utils.closeQuietly(this.reader);
+            }
         }
 
         @Override
@@ -256,7 +259,7 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
             Utils.closeQuietly(reader);
             return false;
         }
-        LOG.info("Loading snapshot, meta={}.", this.loadingSnapshotMeta);
+        LOG.info("Loading snapshot, meta={}.", this.loadingSnapshotMeta.toString().replaceAll("\n", ", "));
         this.loadingSnapshot = true;
         this.runningJobs.incrementAndGet();
         final FirstSnapshotLoadDone done = new FirstSnapshotLoadDone(reader);
@@ -444,7 +447,7 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
             if (this.node != null) {
                 sb.append("Node ").append(this.node.getNodeId()).append(" ");
             }
-            sb.append("onSnapshotLoadDone, ").append(this.loadingSnapshotMeta);
+            sb.append("onSnapshotLoadDone, ").append(this.loadingSnapshotMeta.toString().replaceAll("\n", ", "));
             LOG.info(sb.toString());
             doUnlock = false;
             this.lock.unlock();
@@ -481,17 +484,23 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
         // DON'T access request, response, and done after this point
         // as the retry snapshot will replace this one.
         if (!registerDownloadingSnapshot(ds)) {
-            LOG.warn("Fail to register downloading snapshot.");
+            LOG.warn("{} Fail to register downloading snapshot.", this.node.getGroupId());
             // This RPC will be responded by the previous session
             return;
         }
         Requires.requireNonNull(this.curCopier, "curCopier");
         try {
             this.curCopier.join();
+            // wait
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
-            LOG.warn("Install snapshot copy job was canceled.");
+            LOG.warn("{} Install snapshot copy job was canceled.", this.node.getGroupId());
             return;
+        }
+        try {
+            this.curCopier.waitFinished();
+        } catch (InterruptedException e) {
+            LOG.warn("{} Install snapshot copy job was finished.", this.node.getGroupId());
         }
 
         loadDownloadingSnapshot(ds, meta);
@@ -538,7 +547,7 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
         }
         final InstallSnapshotDone installSnapshotDone = new InstallSnapshotDone(reader);
         if (!this.fsmCaller.onSnapshotLoad(installSnapshotDone)) {
-            LOG.warn("Fail to call fsm onSnapshotLoad.");
+            LOG.warn("{} Fail to call fsm onSnapshotLoad.", this.node.getGroupId());
             installSnapshotDone.run(new Status(RaftError.EHOSTDOWN, "This raft node is down"));
         }
     }
@@ -551,7 +560,7 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
         this.lock.lock();
         try {
             if (this.stopped) {
-                LOG.warn("Register DownloadingSnapshot failed: node is stopped.");
+                LOG.warn("{} Register DownloadingSnapshot failed: node is stopped.", this.node.getGroupId());
                 ds.done
                     .sendResponse(RpcFactoryHelper //
                         .responseFactory() //
@@ -560,7 +569,7 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
                 return false;
             }
             if (this.savingSnapshot) {
-                LOG.warn("Register DownloadingSnapshot failed: is saving snapshot.");
+                LOG.warn("{} Register DownloadingSnapshot failed: is saving snapshot.", this.node.getGroupId());
                 ds.done.sendResponse(RpcFactoryHelper //
                     .responseFactory().newResponse(InstallSnapshotResponse.getDefaultInstance(), RaftError.EBUSY,
                         "Node is saving snapshot."));
@@ -569,16 +578,16 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
 
             ds.responseBuilder.setTerm(this.term);
             if (ds.request.getTerm() != this.term) {
-                LOG.warn("Register DownloadingSnapshot failed: term mismatch, expect {} but {}.", this.term,
-                    ds.request.getTerm());
+                LOG.warn("{} Register DownloadingSnapshot failed: term mismatch, expect {} but {}.",
+                        this.node.getGroupId(), this.term, ds.request.getTerm());
                 ds.responseBuilder.setSuccess(false);
                 ds.done.sendResponse(ds.responseBuilder.build());
                 return false;
             }
             if (ds.request.getMeta().getLastIncludedIndex() <= this.lastSnapshotIndex) {
                 LOG.warn(
-                    "Register DownloadingSnapshot failed: snapshot is not newer, request lastIncludedIndex={}, lastSnapshotIndex={}.",
-                    ds.request.getMeta().getLastIncludedIndex(), this.lastSnapshotIndex);
+                    "{} Register DownloadingSnapshot failed: snapshot is not newer, request lastIncludedIndex={}, lastSnapshotIndex={}.",
+                    this.node.getGroupId(), ds.request.getMeta().getLastIncludedIndex(), this.lastSnapshotIndex);
                 ds.responseBuilder.setSuccess(true);
                 ds.done.sendResponse(ds.responseBuilder.build());
                 return false;
@@ -590,7 +599,8 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
                 this.curCopier = this.snapshotStorage.startToCopyFrom(ds.request.getUri(), newCopierOpts());
                 if (this.curCopier == null) {
                     this.downloadingSnapshot.set(null);
-                    LOG.warn("Register DownloadingSnapshot failed: fail to copy file from {}.", ds.request.getUri());
+                    LOG.warn("{} Register DownloadingSnapshot failed: fail to copy file from {}.",
+                            this.node.getGroupId(), ds.request.getUri());
                     ds.done.sendResponse(RpcFactoryHelper //
                         .responseFactory() //
                         .newResponse(InstallSnapshotResponse.getDefaultInstance(), RaftError.EINVAL,
@@ -614,8 +624,8 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
                 result = true;
             } else if (m.request.getMeta().getLastIncludedIndex() > ds.request.getMeta().getLastIncludedIndex()) {
                 // |is| is older
-                LOG.warn("Register DownloadingSnapshot failed: is installing a newer one, lastIncludeIndex={}.",
-                    m.request.getMeta().getLastIncludedIndex());
+                LOG.warn("{} Register DownloadingSnapshot failed: is installing a newer one, lastIncludeIndex={}.",
+                    this.node.getGroupId(), m.request.getMeta().getLastIncludedIndex());
                 ds.done.sendResponse(RpcFactoryHelper //
                     .responseFactory() //
                     .newResponse(InstallSnapshotResponse.getDefaultInstance(), RaftError.EINVAL,
@@ -624,8 +634,8 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
             } else {
                 // |is| is newer
                 if (this.loadingSnapshot) {
-                    LOG.warn("Register DownloadingSnapshot failed: is loading an older snapshot, lastIncludeIndex={}.",
-                        m.request.getMeta().getLastIncludedIndex());
+                    LOG.warn("{} Register DownloadingSnapshot failed: is loading an older snapshot, lastIncludeIndex={}.",
+                        this.node.getGroupId(), m.request.getMeta().getLastIncludedIndex());
                     ds.done.sendResponse(RpcFactoryHelper //
                         .responseFactory() //
                         .newResponse(InstallSnapshotResponse.getDefaultInstance(), RaftError.EBUSY,
@@ -635,8 +645,8 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
                 Requires.requireNonNull(this.curCopier, "curCopier");
                 this.curCopier.cancel();
                 LOG.warn(
-                    "Register DownloadingSnapshot failed: an older snapshot is under installing, cancel downloading, lastIncludeIndex={}.",
-                    m.request.getMeta().getLastIncludedIndex());
+                    "{} Register DownloadingSnapshot failed: an older snapshot is under installing, cancel downloading, lastIncludeIndex={}.",
+                    this.node.getGroupId(), m.request.getMeta().getLastIncludedIndex());
                 ds.done.sendResponse(RpcFactoryHelper //
                     .responseFactory() //
                     .newResponse(InstallSnapshotResponse.getDefaultInstance(), RaftError.EBUSY,
@@ -648,7 +658,8 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
         }
         if (saved != null) {
             // Respond replaced session
-            LOG.warn("Register DownloadingSnapshot failed: interrupted by retry installing request.");
+            LOG.warn("{} Register DownloadingSnapshot failed: interrupted by retry installing request.",
+                    this.node.getGroupId());
             saved.done.sendResponse(RpcFactoryHelper //
                 .responseFactory() //
                 .newResponse(InstallSnapshotResponse.getDefaultInstance(), RaftError.EINTR,
@@ -681,7 +692,8 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
             }
             Requires.requireNonNull(this.curCopier, "curCopier");
             this.curCopier.cancel();
-            LOG.info("Trying to cancel downloading snapshot: {}.", this.downloadingSnapshot.get().request);
+            LOG.info("{} Trying to cancel downloading snapshot: {}.",
+                    this.node.getGroupId(), this.downloadingSnapshot.get().request);
         } finally {
             this.lock.unlock();
         }

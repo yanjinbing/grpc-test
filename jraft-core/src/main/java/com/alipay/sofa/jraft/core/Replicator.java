@@ -96,6 +96,7 @@ public class Replicator implements ThreadId.OnError {
     private volatile long                    probeCounter           = 0;
     private volatile long                    appendEntriesCounter   = 0;
     private volatile long                    installSnapshotCounter = 0;
+    private volatile long                    rejectLogCounter       = 0;
     protected Stat                           statInfo               = new Stat();
     private ScheduledFuture<?>               blockTimer;
 
@@ -199,6 +200,7 @@ public class Replicator implements ThreadId.OnError {
             gauges.put("install-snapshot-times", (Gauge<Long>) () -> this.r.installSnapshotCounter);
             gauges.put("probe-times", (Gauge<Long>) () -> this.r.probeCounter);
             gauges.put("append-entries-times", (Gauge<Long>) () -> this.r.appendEntriesCounter);
+            gauges.put("reject-log-times", (Gauge<Long>) () -> this.r.rejectLogCounter);
             return gauges;
         }
     }
@@ -328,7 +330,7 @@ public class Replicator implements ThreadId.OnError {
                             break;
                     }
                 } catch (final Exception e) {
-                    LOG.error("Fail to notify ReplicatorStatusListener, listener={}, event={}.", listener, event);
+                    LOG.error("Fail to notify ReplicatorStatusListener, listener={}, event={}, exception={}", listener, event, e);
                 }
             }
         }
@@ -438,7 +440,7 @@ public class Replicator implements ThreadId.OnError {
 
         @Override
         public String toString() {
-            return "RpcResponse [status=" + this.status + ", request=" + this.request + ", response=" + this.response
+            return "RpcResponse [status=" + this.status + ", request=" + Utils.getMessageDesc(this.request) + ", response=" + this.response
                    + ", rpcSendTime=" + this.rpcSendTime + ", seq=" + this.seq + ", requestType=" + this.requestType
                    + "]";
         }
@@ -459,6 +461,16 @@ public class Replicator implements ThreadId.OnError {
 
     State getState() {
         return this.state;
+    }
+
+    public static State getState(final ThreadId id) {
+        final Replicator r = (Replicator) id.lock();
+        if (r == null) {
+            return State.Probe;
+        }
+        State result = r.getState();
+        id.unlock();
+        return result;
     }
 
     void setState(final State state) {
@@ -606,26 +618,27 @@ public class Replicator implements ThreadId.OnError {
             this.heartbeatTimer = this.timerManager.schedule(() -> onTimeout(this.id), dueTime - Utils.nowMs(),
                 TimeUnit.MILLISECONDS);
         } catch (final Exception e) {
-            LOG.error("Fail to schedule heartbeat timer", e);
+            LOG.error("{} Fail to schedule heartbeat timer. {}", this.getPeerPairName(), e);
             onTimeout(this.id);
         }
     }
 
     public void installSnapshot() {
         if (getState() == State.Snapshot) {
-            LOG.warn("Replicator {} is installing snapshot, ignore the new request.", this.options.getPeerId());
+            LOG.warn("Replicator {} is installing snapshot, ignore the new request.", this.getPeerPairName());
             unlockId();
             return;
         }
         boolean doUnlock = true;
         if (!rpcService.connect(options.getPeerId().getEndpoint())) {
-            LOG.error("Fail to check install snapshot connection to peer={}, give up to send install snapshot request.", options.getPeerId().getEndpoint());
-            block(Utils.nowMs(), RaftError.EHOSTDOWN.getNumber());
+            LOG.error("Fail to check install snapshot connection to peer={}, give up to send install snapshot request.",
+                    this.getPeerPairName());
+            block(Utils.nowMs(), RaftError.EHOSTDOWN.getNumber(), 1);
             return;
         }
         try {
             Requires.requireTrue(this.reader == null,
-                "Replicator %s already has a snapshot reader, current state is %s", this.options.getPeerId(),
+                "Replicator %s already has a snapshot reader, current state is %s", this.getPeerPairName(),
                 getState());
             this.reader = this.options.getSnapshotStorage().open();
             if (this.reader == null) {
@@ -714,7 +727,7 @@ public class Replicator implements ThreadId.OnError {
                 LOG.info(sb.toString());
                 notifyReplicatorStatusListener(r, ReplicatorEvent.ERROR, status);
                 if (++r.consecutiveErrorTimes % 10 == 0) {
-                    LOG.warn("Fail to install snapshot at peer={}, error={}", r.options.getPeerId(), status);
+                    LOG.warn("{} Fail to install snapshot, error={}", r.getPeerPairName(), status);
                 }
                 success = false;
                 break;
@@ -734,9 +747,10 @@ public class Replicator implements ThreadId.OnError {
         // id is unlock in sendEntries
         if (!success) {
             //should reset states
-            r.resetInflights();
+            r.resetInflights(String.format("onInstallSnapshotReturned failed: %s", status));
             r.setState(State.Probe);
-            r.block(Utils.nowMs(), status.getCode());
+            // to block 3 times of heartBeat
+            r.block(Utils.nowMs(), status.getCode(), 3);
             return false;
         }
         r.hasSucceeded = true;
@@ -819,8 +833,8 @@ public class Replicator implements ThreadId.OnError {
 
                 addInflight(RequestType.AppendEntries, this.nextIndex, 0, 0, seq, rpcFuture);
             }
-            LOG.debug("Node {} send HeartbeatRequest to {} term {} lastCommittedIndex {}", this.options.getNode()
-                .getNodeId(), this.options.getPeerId(), this.options.getTerm(), rb.getCommittedIndex());
+            LOG.debug("Send HeartbeatRequest to {} term {} lastCommittedIndex {}",
+                    this.getPeerPairName(), this.options.getTerm(), rb.getCommittedIndex());
         } finally {
                 unlockId();
         }
@@ -884,7 +898,7 @@ public class Replicator implements ThreadId.OnError {
         }
         final Replicator r = new Replicator(opts, raftOptions);
         if (!r.rpcService.connect(opts.getPeerId().getEndpoint())) {
-            LOG.error("Fail to init sending channel to {}.", opts.getPeerId());
+            LOG.error("Fail to init sending channel to {}.", r.getPeerPairName());
             // Return and it will be retried later.
             return null;
         }
@@ -905,7 +919,7 @@ public class Replicator implements ThreadId.OnError {
         r.id = new ThreadId(r, r);
         r.id.lock();
         notifyReplicatorStatusListener(r, ReplicatorEvent.CREATED);
-        LOG.info("Replicator={}@{} is started", r.id, r.options.getPeerId());
+        LOG.info("Replicator {} is started", r.getPeerPairName());
         r.catchUpClosure = null;
         r.lastRpcSendTimestamp = Utils.monotonicMs();
         r.startHeartbeatTimer(Utils.nowMs());
@@ -915,7 +929,8 @@ public class Replicator implements ThreadId.OnError {
     }
 
     private String getReplicatorMetricName(final ReplicatorOptions opts) {
-        return "replicator-" + opts.getNode().getGroupId() + "/" + opts.getPeerId();
+//        return "replicator-" + opts.getNode().getGroupId() + "/" + opts.getPeerId();
+        return "replicator-" + opts.getPeerId().getEndpoint();
     }
 
     public static void waitForCaughtUp(final ThreadId id, final long maxMargin, final long dueTime,
@@ -928,7 +943,7 @@ public class Replicator implements ThreadId.OnError {
         }
         try {
             if (r.catchUpClosure != null) {
-                LOG.error("Previous wait_for_caught_up is not over");
+                LOG.error("{} Previous wait_for_caught_up is not over", r.getPeerPairName());
                 Utils.runClosureInThread(done, new Status(RaftError.EINVAL, "Duplicated call"));
                 return;
             }
@@ -1006,30 +1021,41 @@ public class Replicator implements ThreadId.OnError {
     }
 
     static void onBlockTimeout(final ThreadId arg) {
-        RpcUtils.runInThread(() -> onBlockTimeoutInNewThread(arg));
+        RpcUtils.runInThread(() -> {
+            try {
+                onBlockTimeoutInNewThread(arg);
+            } catch (Throwable t) {
+                LOG.error("onBlockTimeout failed. ", t);
+            }
+        });
     }
 
-    void block(final long startTimeMs, @SuppressWarnings("unused") final int errorCode) {
+    void block(final long startTimeMs, @SuppressWarnings("unused") final int errorCode, int multiple) {
         // TODO: Currently we don't care about error_code which indicates why the
         // very RPC fails. To make it better there should be different timeout for
         // each individual error (e.g. we don't need check every
         // heartbeat_timeout_ms whether a dead follower has come back), but it's just
         // fine now.
+
+        // use multiple of HeaderBeatTimeout,
         if(this.blockTimer != null) {
             // already in blocking state,return immediately.
             unlockId();
             return;
         }
-        final long dueTime = startTimeMs + this.options.getDynamicHeartBeatTimeoutMs();
+        if (multiple < 1) {
+            multiple = 1;
+        }
+        final long dueTime = startTimeMs + multiple * this.options.getDynamicHeartBeatTimeoutMs();
         try {
-            LOG.debug("Blocking {} for {} ms", this.options.getPeerId(), this.options.getDynamicHeartBeatTimeoutMs());
+            LOG.debug("Blocking {} for {} ms", this.getPeerPairName(), this.options.getDynamicHeartBeatTimeoutMs());
             this.blockTimer = this.timerManager.schedule(() -> onBlockTimeout(this.id), dueTime - Utils.nowMs(),
                 TimeUnit.MILLISECONDS);
             this.statInfo.runningState = RunningState.BLOCKING;
             unlockId();
         } catch (final Exception e) {
             this.blockTimer = null;
-            LOG.error("Fail to add timer", e);
+            LOG.error("{} Fail to add timer: {}", this.getPeerPairName(), e);
             // id unlock in sendEmptyEntries.
             sendProbeRequest();
         }
@@ -1074,7 +1100,13 @@ public class Replicator implements ThreadId.OnError {
             }
         } else if (errorCode == RaftError.ETIMEDOUT.getNumber()) {
             id.unlock();
-            RpcUtils.runInThread(() -> sendHeartbeat(id));
+            RpcUtils.runInThread(() -> {
+                try {
+                    sendHeartbeat(id);
+                } catch (Throwable t) {
+                    LOG.error("sendHeartBeat failed", t);
+                }
+            });
         } else {
             id.unlock();
             // noinspection ConstantConditions
@@ -1193,7 +1225,7 @@ public class Replicator implements ThreadId.OnError {
                 }
                 r.setState(State.Probe);
                 notifyReplicatorStatusListener(r, ReplicatorEvent.ERROR, status);
-                if (++r.consecutiveErrorTimes % 10 == 0) {
+                if (++r.consecutiveErrorTimes % 10 == 1) {
                     LOG.warn("Fail to issue RPC to {}, consecutiveErrorTimes={}, error={}", r.options.getPeerId(),
                         r.consecutiveErrorTimes, status);
                 }
@@ -1213,7 +1245,7 @@ public class Replicator implements ThreadId.OnError {
                 r.notifyOnCaughtUp(RaftError.EPERM.getNumber(), true);
                 r.destroy();
                 node.increaseTermTo(response.getTerm(), new Status(RaftError.EHIGHERTERMRESPONSE,
-                    "Leader receives higher term heartbeat_response from peer:%s", r.options.getPeerId()));
+                    "Leader receives higher term heartbeat_response from peer:%s", r.getPeerPairName()));
                 return;
             }
             if (!response.getSuccess() && response.hasLastLogIndex()) {
@@ -1224,7 +1256,8 @@ public class Replicator implements ThreadId.OnError {
                         .append(response.getLastLogIndex());
                     LOG.debug(sb.toString());
                 }
-                LOG.warn("Heartbeat to peer {} failure, try to send a probe request.", r.options.getPeerId());
+                LOG.warn("Heartbeat to peer {} failure, try to send a probe request. response={}",
+                        r.getPeerPairName(), response);
                 doUnlock = false;
                 r.sendProbeRequest();
                 r.startHeartbeatTimer(startTimeMs);
@@ -1258,8 +1291,8 @@ public class Replicator implements ThreadId.OnError {
 
         if (stateVersion != r.version) {
             LOG.debug(
-                "Replicator {} ignored old version response {}, current version is {}, request is {}\n, and response is {}\n, status is {}.",
-                r, stateVersion, r.version, request, response, status);
+                "Replicator {} ignored old version response {}, current version is {}, request is {}, and response is {}, status is {}.",
+                r.getPeerPairName(), stateVersion, r.version, Utils.getMessageDesc(request), response, status);
             id.unlock();
             return;
         }
@@ -1269,8 +1302,8 @@ public class Replicator implements ThreadId.OnError {
 
         if (holdingQueue.size() > r.raftOptions.getMaxReplicatorInflightMsgs()) {
             LOG.warn("Too many pending responses {} for replicator {}, maxReplicatorInflightMsgs={}",
-                holdingQueue.size(), r.options.getPeerId(), r.raftOptions.getMaxReplicatorInflightMsgs());
-            r.resetInflights();
+                holdingQueue.size(), r.getPeerPairName(), r.raftOptions.getMaxReplicatorInflightMsgs());
+            r.resetInflights("Too many pending responses");
             r.setState(State.Probe);
             r.sendProbeRequest();
             return;
@@ -1322,11 +1355,11 @@ public class Replicator implements ThreadId.OnError {
                     // reset state
                     LOG.warn(
                         "Replicator {} response sequence out of order, expect {}, but it is {}, reset state to try again.",
-                        r, inflight.seq, queuedPipelinedResponse.seq);
-                    r.resetInflights();
+                        r.getPeerPairName(), inflight.seq, queuedPipelinedResponse.seq);
+                    r.resetInflights("response sequence out of order");
                     r.setState(State.Probe);
                     continueSendEntries = false;
-                    r.block(Utils.nowMs(), RaftError.EREQUEST.getNumber());
+                    r.block(Utils.nowMs(), RaftError.EREQUEST.getNumber(), 1);
                     return;
                 }
                 try {
@@ -1368,7 +1401,10 @@ public class Replicator implements ThreadId.OnError {
     /**
      * Reset in-flight state.
      */
-    void resetInflights() {
+    void resetInflights(String reason) {
+        LOG.info("{} reset in-flights: ver={}, count={}, prev-inf={}, reason={}",
+                this.getPeerPairName(), this.version, this.inflights.size(),
+                this.rpcInFly == null ? "null" : this.rpcInFly, reason);
         this.version++;
         this.inflights.clear();
         this.pendingResponses.clear();
@@ -1384,8 +1420,8 @@ public class Replicator implements ThreadId.OnError {
         if (inflight.startIndex != request.getPrevLogIndex() + 1) {
             LOG.warn(
                 "Replicator {} received invalid AppendEntriesResponse, in-flight startIndex={}, request prevLogIndex={}, reset the replicator state and probe again.",
-                r, inflight.startIndex, request.getPrevLogIndex());
-            r.resetInflights();
+                r.getPeerPairName(), inflight.startIndex, request.getPrevLogIndex());
+            r.resetInflights("invalid AppendEntriesResponse");
             r.setState(State.Probe);
             // unlock id in sendEmptyEntries
             r.sendProbeRequest();
@@ -1426,14 +1462,14 @@ public class Replicator implements ThreadId.OnError {
                 LOG.debug(sb.toString());
             }
             notifyReplicatorStatusListener(r, ReplicatorEvent.ERROR, status);
-            if (++r.consecutiveErrorTimes % 10 == 0) {
-                LOG.warn("Fail to issue RPC to {}, consecutiveErrorTimes={}, error={}", r.options.getPeerId(),
+            if (++r.consecutiveErrorTimes % 10 == 1) {
+                LOG.warn("Fail to issue RPC to {}, consecutiveErrorTimes={}, error={}", r.getPeerPairName(),
                     r.consecutiveErrorTimes, status);
             }
-            r.resetInflights();
+            r.resetInflights(String.format("onAppendEntriesReturned failed %s", status));
             r.setState(State.Probe);
             // unlock in in block
-            r.block(startTimeMs, status.getCode());
+            r.block(startTimeMs, status.getCode(), 1);
             return false;
         }
         r.consecutiveErrorTimes = 0;
@@ -1462,21 +1498,24 @@ public class Replicator implements ThreadId.OnError {
                 r.lastRpcSendTimestamp = rpcSendTime;
             }
             // Fail, reset the state to try again from nextIndex.
-            r.resetInflights();
+            r.resetInflights(String.format("onAppendEntriesReturned failed, response = %s", response));
             // prev_log_index and prev_log_term doesn't match
             if (response.getLastLogIndex() + 1 < r.nextIndex) {
-                LOG.debug("LastLogIndex at peer={} is {}", r.options.getPeerId(), response.getLastLogIndex());
+                LOG.info("{} report unmatched lastLogIndex={}, nextIndex={} is reset",
+                        r.getPeerPairName(), response.getLastLogIndex(), r.nextIndex);
                 // The peer contains less logs than leader
                 r.nextIndex = response.getLastLogIndex() + 1;
+                // un-matched log-index counter
+                r.rejectLogCounter++;
             } else {
                 // The peer contains logs from old term which should be truncated,
                 // decrease _last_log_at_peer by one to test the right index to keep
                 if (r.nextIndex > 1) {
-                    LOG.debug("logIndex={} dismatch", r.nextIndex);
+                    LOG.info("{} nextIndex={} dismatch", r.getPeerPairName(), r.nextIndex);
                     r.nextIndex--;
                 } else {
-                    LOG.error("Peer={} declares that log at index=0 doesn't match, which is not supposed to happen",
-                        r.options.getPeerId());
+                    LOG.error("{} declares that log at index=0 doesn't match, which is not supposed to happen",
+                        r.getPeerPairName());
                 }
             }
             // dummy_id is unlock in _send_heartbeat
@@ -1489,15 +1528,24 @@ public class Replicator implements ThreadId.OnError {
         }
         // success
         if (response.getTerm() != r.options.getTerm()) {
-            r.resetInflights();
+            r.resetInflights("response term dismatch");
             r.setState(State.Probe);
-            LOG.error("Fail, response term {} dismatch, expect term {}", response.getTerm(), r.options.getTerm());
+            LOG.error("{} Fail, response term {} dismatch, expect term {}", r.getPeerPairName(), response.getTerm(), r.options.getTerm());
             id.unlock();
             return false;
         }
         if (rpcSendTime > r.lastRpcSendTimestamp) {
             r.lastRpcSendTimestamp = rpcSendTime;
         }
+
+        if (response.getBackpressureScore() > 0) {
+            r.nodeMetrics.recordTimes("replicator-backpressure-count", 1);
+            NodeImpl node = r.options.getNode();
+            if (node != null) {
+                node.setLeaderBackpressureScore(response.getBackpressureScore());
+            }
+        }
+
         final int entriesSize = request.getEntriesCount();
         if (entriesSize > 0) {
             if (r.options.getReplicatorType().isFollower()) {
@@ -1506,7 +1554,7 @@ public class Replicator implements ThreadId.OnError {
             }
             if (LOG.isDebugEnabled()) {
                 LOG.debug("Replicated logs in [{}, {}] to peer {}", r.nextIndex, r.nextIndex + entriesSize - 1,
-                    r.options.getPeerId());
+                    r.getPeerPairName());
             }
         }
 
@@ -1519,6 +1567,7 @@ public class Replicator implements ThreadId.OnError {
         if (r.timeoutNowIndex > 0 && r.timeoutNowIndex < r.nextIndex) {
             r.sendTimeoutNow(false, false);
         }
+
         return true;
     }
 
@@ -1526,8 +1575,9 @@ public class Replicator implements ThreadId.OnError {
         final long prevLogTerm = this.options.getLogManager().getTerm(prevLogIndex);
         if (prevLogTerm == 0 && prevLogIndex != 0) {
             if (!isHeartbeat) {
-                Requires.requireTrue(prevLogIndex < this.options.getLogManager().getFirstLogIndex());
-                LOG.debug("logIndex={} was compacted", prevLogIndex);
+                long firstLogIndex = this.options.getLogManager().getFirstLogIndex();
+                Requires.requireTrue(prevLogIndex < firstLogIndex);
+                LOG.info("{} logIndex={} was compacted. first={}", this.getPeerPairName(), prevLogIndex, firstLogIndex);
                 return false;
             } else {
                 // The log at prev_log_index has been compacted, which indicates
@@ -1550,7 +1600,7 @@ public class Replicator implements ThreadId.OnError {
 
     private void waitMoreEntries(final long nextWaitIndex) {
         try {
-            LOG.debug("Node {} waits more entries", this.options.getNode().getNodeId());
+            LOG.debug("{} waits more entries", this.getPeerPairName());
             if (this.waitId >= 0) {
                 return;
             }
@@ -1618,6 +1668,9 @@ public class Replicator implements ThreadId.OnError {
             }
             if (rb.getEntriesCount() == 0) {
                 if (nextSendingIndex < this.options.getLogManager().getFirstLogIndex()) {
+                    LOG.info("{} try installSnapshot nextSendingIndex={}, first={}",
+                            this.getPeerPairName(), nextSendingIndex,
+                            this.options.getLogManager().getFirstLogIndex());
                     installSnapshot();
                     return false;
                 }
@@ -1641,16 +1694,25 @@ public class Replicator implements ThreadId.OnError {
         final AppendEntriesRequest request = rb.build();
         if (LOG.isDebugEnabled()) {
             LOG.debug(
-                "Node {} send AppendEntriesRequest to {} term {} lastCommittedIndex {} prevLogIndex {} prevLogTerm {} logIndex {} count {}",
-                this.options.getNode().getNodeId(), this.options.getPeerId(), this.options.getTerm(),
+                "Send AppendEntriesRequest to {} term {} lastCommittedIndex {} prevLogIndex {} prevLogTerm {} logIndex {} count {}",
+                this.getPeerPairName(), this.options.getTerm(),
                 request.getCommittedIndex(), request.getPrevLogIndex(), request.getPrevLogTerm(), nextSendingIndex,
                 request.getEntriesCount());
         }
+
+        final Recyclable recyclable = dataBuf;
+        //
+        if (!this.rpcService.checkConnection(this.options.getPeerId().getEndpoint(), true)) {
+            RecycleUtil.recycle(recyclable);
+            LOG.warn("Fail to send entries to peer={}, maybe write overflow!. Block it and try again next time", this.getPeerPairName());
+            block(Utils.nowMs(), RaftError.EHOSTDOWN.getNumber(), 1);
+            return false;
+        }
+
         this.statInfo.runningState = RunningState.APPENDING_ENTRIES;
         this.statInfo.firstLogIndex = rb.getPrevLogIndex() + 1;
         this.statInfo.lastLogIndex = rb.getPrevLogIndex() + rb.getEntriesCount();
 
-        final Recyclable recyclable = dataBuf;
         final int v = this.version;
         final long monotonicSendTimeMs = Utils.monotonicMs();
         final int seq = getAndIncrementReqSeq();
@@ -1659,15 +1721,15 @@ public class Replicator implements ThreadId.OnError {
         Future<Message> rpcFuture = null;
         try {
             rpcFuture = this.rpcService.appendEntries(this.options.getPeerId().getEndpoint(), request, -1,
-                new RpcResponseClosureAdapter<AppendEntriesResponse>() {
+                    new RpcResponseClosureAdapter<AppendEntriesResponse>() {
 
-                    @Override
-                    public void run(final Status status) {
-                        RecycleUtil.recycle(recyclable); // TODO: recycle on send success, not response received.
-                        onRpcReturned(Replicator.this.id, RequestType.AppendEntries, status, request, getResponse(),
-                            seq, v, monotonicSendTimeMs);
-                    }
-                });
+                        @Override
+                        public void run(final Status status) {
+                            RecycleUtil.recycle(recyclable); // TODO: recycle on send success, not response received.
+                            onRpcReturned(Replicator.this.id, RequestType.AppendEntries, status, request, getResponse(),
+                                    seq, v, monotonicSendTimeMs);
+                        }
+                    });
         } catch (final Throwable t) {
             RecycleUtil.recycle(recyclable);
             ThrowUtil.throwException(t);
@@ -1876,4 +1938,7 @@ public class Replicator implements ThreadId.OnError {
         this.id.unlock();
     }
 
+    private String getPeerPairName() {
+        return this.options.getGroupId() + ":" + this.options.getPeerId().toString();
+    }
 }

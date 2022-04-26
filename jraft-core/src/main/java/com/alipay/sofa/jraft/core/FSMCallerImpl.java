@@ -22,6 +22,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.alipay.sofa.jraft.util.DisruptorBackpressureController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -145,6 +146,11 @@ public class FSMCallerImpl implements FSMCaller {
 
         @Override
         public void onEvent(final ApplyTask event, final long sequence, final boolean endOfBatch) throws Exception {
+            double backpressureScore = FSMCallerImpl.this.backpressureController
+                    .checkBackpressure(false);
+            if (FSMCallerImpl.this.node != null) {
+                FSMCallerImpl.this.node.setLeaderBackpressureScore(backpressureScore);
+            }
             this.maxCommittedIndex = runApplyTask(event, this.maxCommittedIndex, endOfBatch);
         }
     }
@@ -161,6 +167,7 @@ public class FSMCallerImpl implements FSMCaller {
     private volatile RaftException                                  error;
     private Disruptor<ApplyTask>                                    disruptor;
     private RingBuffer<ApplyTask>                                   taskQueue;
+    private DisruptorBackpressureController                         backpressureController;
     private volatile CountDownLatch                                 shutdownLatch;
     private NodeMetrics                                             nodeMetrics;
     private final CopyOnWriteArrayList<LastAppliedLogIndexListener> lastAppliedLogIndexListeners = new CopyOnWriteArrayList<>();
@@ -193,9 +200,14 @@ public class FSMCallerImpl implements FSMCaller {
         this.disruptor.handleEventsWith(new ApplyTaskHandler());
         this.disruptor.setDefaultExceptionHandler(new LogExceptionHandler<Object>(getClass().getSimpleName()));
         this.taskQueue = this.disruptor.start();
+        this.backpressureController = new DisruptorBackpressureController(
+                this.taskQueue, this.node.getRaftOptions()
+        );
         if (this.nodeMetrics.getMetricRegistry() != null) {
+            DisruptorMetricSet disruptorMetricSet = new DisruptorMetricSet(this.taskQueue);
+            this.backpressureController.setDisruptorMetricSet(disruptorMetricSet);
             this.nodeMetrics.getMetricRegistry().register("jraft-fsm-caller-disruptor",
-                new DisruptorMetricSet(this.taskQueue));
+                    disruptorMetricSet);
         }
         this.error = new RaftException(EnumOutter.ErrorType.ERROR_TYPE_NONE);
         LOG.info("Starts FSMCaller successfully.");
@@ -232,12 +244,8 @@ public class FSMCallerImpl implements FSMCaller {
             LOG.warn("FSMCaller is stopped, can not apply new task.");
             return false;
         }
-        System.out.println("FSMCaller queue is " + taskQueue.remainingCapacity());
-        if (!this.taskQueue.tryPublishEvent(tpl)) {
-            setError(new RaftException(ErrorType.ERROR_TYPE_STATE_MACHINE, new Status(RaftError.EBUSY,
-                "FSMCaller is overload.")));
-            return false;
-        }
+
+        this.taskQueue.publishEvent(tpl);
         return true;
     }
 
@@ -298,7 +306,7 @@ public class FSMCallerImpl implements FSMCaller {
     public boolean onStartFollowing(final LeaderChangeContext ctx) {
         return enqueueTask((task, sequence) -> {
             task.type = TaskType.START_FOLLOWING;
-            task.leaderChangeCtx = new LeaderChangeContext(ctx.getLeaderId(), ctx.getTerm(), ctx.getStatus());
+            task.leaderChangeCtx = new LeaderChangeContext(ctx.getLeaderId(), ctx.getGroupId(), ctx.getTerm(), ctx.getStatus());
         });
     }
 
@@ -306,7 +314,7 @@ public class FSMCallerImpl implements FSMCaller {
     public boolean onStopFollowing(final LeaderChangeContext ctx) {
         return enqueueTask((task, sequence) -> {
             task.type = TaskType.STOP_FOLLOWING;
-            task.leaderChangeCtx = new LeaderChangeContext(ctx.getLeaderId(), ctx.getTerm(), ctx.getStatus());
+            task.leaderChangeCtx = new LeaderChangeContext(ctx.getLeaderId(), ctx.getGroupId(), ctx.getTerm(), ctx.getStatus());
         });
     }
 

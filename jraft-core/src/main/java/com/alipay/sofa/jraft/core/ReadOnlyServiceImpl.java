@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import com.alipay.sofa.jraft.util.DisruptorBackpressureController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,10 +70,10 @@ import com.lmax.disruptor.dsl.ProducerType;
  */
 public class ReadOnlyServiceImpl implements ReadOnlyService, LastAppliedLogIndexListener {
 
-    private static final int                           MAX_ADD_REQUEST_RETRY_TIMES = 3;
     /** Disruptor to run readonly service. */
     private Disruptor<ReadIndexEvent>                  readIndexDisruptor;
     private RingBuffer<ReadIndexEvent>                 readIndexQueue;
+    private DisruptorBackpressureController            backpressureController;
     private RaftOptions                                raftOptions;
     private NodeImpl                                   node;
     private final Lock                                 lock                        = new ReentrantLock();
@@ -121,6 +122,13 @@ public class ReadOnlyServiceImpl implements ReadOnlyService, LastAppliedLogIndex
         @Override
         public void onEvent(final ReadIndexEvent newEvent, final long sequence, final boolean endOfBatch)
                                                                                                          throws Exception {
+
+            double backpressureScore = ReadOnlyServiceImpl.this.backpressureController
+                    .checkBackpressure(false);
+            if (ReadOnlyServiceImpl.this.node != null) {
+                ReadOnlyServiceImpl.this.node.setLeaderBackpressureScore(backpressureScore);
+            }
+
             if (newEvent.shutdownLatch != null) {
                 executeReadIndexEvents(this.events);
                 reset();
@@ -270,9 +278,14 @@ public class ReadOnlyServiceImpl implements ReadOnlyService, LastAppliedLogIndex
         this.readIndexDisruptor
             .setDefaultExceptionHandler(new LogExceptionHandler<Object>(getClass().getSimpleName()));
         this.readIndexQueue = this.readIndexDisruptor.start();
+        this.backpressureController = new DisruptorBackpressureController(
+                this.readIndexQueue, this.raftOptions
+        );
         if (this.nodeMetrics.getMetricRegistry() != null) {
+            DisruptorMetricSet disruptorMetricSet = new DisruptorMetricSet(this.readIndexQueue);
+            this.backpressureController.setDisruptorMetricSet(disruptorMetricSet);
             this.nodeMetrics.getMetricRegistry() //
-                .register("jraft-read-only-service-disruptor", new DisruptorMetricSet(this.readIndexQueue));
+                .register("jraft-read-only-service-disruptor", disruptorMetricSet);
         }
         // listen on lastAppliedLogIndex change events.
         this.fsmCaller.addLastAppliedLogIndexListener(this);
@@ -323,22 +336,8 @@ public class ReadOnlyServiceImpl implements ReadOnlyService, LastAppliedLogIndex
                 event.requestContext = new Bytes(reqCtx);
                 event.startTime = Utils.monotonicMs();
             };
-            int retryTimes = 0;
-            while (true) {
-                if (this.readIndexQueue.tryPublishEvent(translator)) {
-                    break;
-                } else {
-                    retryTimes++;
-                    if (retryTimes > MAX_ADD_REQUEST_RETRY_TIMES) {
-                        Utils.runClosureInThread(closure,
-                            new Status(RaftError.EBUSY, "Node is busy, has too many read-only requests."));
-                        this.nodeMetrics.recordTimes("read-index-overload-times", 1);
-                        LOG.warn("Node {} ReadOnlyServiceImpl readIndexQueue is overload.", this.node.getNodeId());
-                        return;
-                    }
-                    ThreadHelper.onSpinWait();
-                }
-            }
+
+            this.readIndexQueue.publishEvent(translator);
         } catch (final Exception e) {
             Utils.runClosureInThread(closure, new Status(RaftError.EPERM, "Node is down."));
         }

@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import com.alipay.sofa.jraft.util.FileHelper;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -158,6 +159,11 @@ public class LocalSnapshotStorage implements SnapshotStorage {
         return this.path + File.separator + Snapshot.JRAFT_SNAPSHOT_PREFIX + index;
     }
 
+    // @for Log
+    public String getPath(){
+        return this.path;
+    }
+
     void ref(final long index) {
         final AtomicInteger refs = getRefs(index);
         refs.incrementAndGet();
@@ -280,6 +286,7 @@ public class LocalSnapshotStorage implements SnapshotStorage {
                     break;
                 }
             }
+
             writer = new LocalSnapshotWriter(snapshotPath, this, this.raftOptions);
             if (!writer.init(null)) {
                 LOG.error("Fail to init snapshot writer.");

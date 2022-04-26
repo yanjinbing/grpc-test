@@ -3,7 +3,4 @@
 
 ## 说明
 
-NodeImpl.applyQueue、LogManagerImpl.diskQueue、FSMCallerImpl.taskQueue 存在queue overload问题。
-queue设置太长，在同时启动多个Raft Group时存在OutOfMemory的问题。
-为了解决overload、outOfMemory问题，对Queue使用进行监控，当Queue可用空间小于阈值时，通知leader进行限速。
-
+放到此处，方便调试与查找问题
