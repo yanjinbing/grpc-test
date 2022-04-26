@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 
+import com.alipay.sofa.jraft.option.NodeOptions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -70,6 +71,7 @@ public class ReadOnlyServiceTest {
         opts.setNode(this.node);
         opts.setRaftOptions(new RaftOptions());
         Mockito.when(this.node.getNodeMetrics()).thenReturn(new NodeMetrics(false));
+        Mockito.when(this.node.getOptions()).thenReturn(new NodeOptions());
         Mockito.when(this.node.getGroupId()).thenReturn("test");
         Mockito.when(this.node.getServerId()).thenReturn(new PeerId("localhost:8081", 0));
         assertTrue(this.readOnlyServiceImpl.init(opts));

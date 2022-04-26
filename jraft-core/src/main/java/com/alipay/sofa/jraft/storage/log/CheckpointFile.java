@@ -16,16 +16,15 @@
  */
 package com.alipay.sofa.jraft.storage.log;
 
-import java.io.File;
-import java.io.IOException;
-
-import org.apache.commons.io.FileUtils;
-
 import com.alipay.sofa.jraft.entity.LocalFileMetaOutter.LocalFileMeta;
 import com.alipay.sofa.jraft.storage.io.ProtoBufFile;
 import com.alipay.sofa.jraft.util.AsciiStringUtil;
 import com.alipay.sofa.jraft.util.Bits;
 import com.google.protobuf.ZeroByteStringHelper;
+import org.apache.commons.io.FileUtils;
+
+import java.io.File;
+import java.io.IOException;
 
 /**
  * Segments checkpoint file.

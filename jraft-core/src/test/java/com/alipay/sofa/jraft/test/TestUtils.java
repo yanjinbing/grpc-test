@@ -127,6 +127,19 @@ public class TestUtils {
         return entries;
     }
 
+    public static List<LogEntry> mockEntries(final int from, final int to, final int dataSize) {
+        List<LogEntry> entries = new ArrayList<>();
+        for (int i = 0; i < to - from; i++) {
+            int entryDataSize = 0;
+            if (i > 0 || from > 0) {
+                entryDataSize = dataSize;
+            }
+            LogEntry entry = mockEntry(i, i, entryDataSize);
+            entries.add(entry);
+        }
+        return entries;
+    }
+
     public static RpcRequests.PingRequest createPingRequest() {
         RpcRequests.PingRequest reqObject = RpcRequests.PingRequest.newBuilder()
             .setSendTimestamp(System.currentTimeMillis()).build();

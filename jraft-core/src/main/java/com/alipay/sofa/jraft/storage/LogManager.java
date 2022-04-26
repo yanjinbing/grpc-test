@@ -49,9 +49,18 @@ public interface LogManager extends Lifecycle<LogManagerOptions>, Describer {
         protected long           firstLogIndex = 0;
         protected List<LogEntry> entries;
         protected int            nEntries;
+        protected double         backpressureScore = -1;
 
         public StableClosure() {
             // NO-OP
+        }
+
+        public double getBackpressureScore() {
+            return backpressureScore;
+        }
+
+        public void setBackpressureScore(double backpressureScore) {
+            this.backpressureScore = backpressureScore;
         }
 
         public long getFirstLogIndex() {
@@ -115,6 +124,14 @@ public interface LogManager extends Lifecycle<LogManagerOptions>, Describer {
      *         while waiting
      */
     void join() throws InterruptedException;
+
+    /**
+     * Given specified <tt>requiredCapacity</tt> determines if that amount of space
+     * is available to append these entries. Returns true when available.
+     * @param requiredCapacity
+     * @return Returns true when available.
+     */
+    boolean hasAvailableCapacityToAppendEntries(final int requiredCapacity);
 
     /**
      * Append log entry vector and wait until it's stable (NOT COMMITTED!)

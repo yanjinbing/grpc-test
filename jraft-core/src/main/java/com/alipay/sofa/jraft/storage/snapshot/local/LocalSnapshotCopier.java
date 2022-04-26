@@ -18,15 +18,16 @@ package com.alipay.sofa.jraft.storage.snapshot.local;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import com.alipay.sofa.jraft.util.FileHelper;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,6 +62,8 @@ public class LocalSnapshotCopier extends SnapshotCopier {
     private final Lock                   lock = new ReentrantLock();
     /** The copy job future object*/
     private volatile Future<?>           future;
+    /** 等待线程结束 */
+    private final CountDownLatch finishLatch = new CountDownLatch(1);
     private boolean                      cancelled;
     /** snapshot writer */
     private LocalSnapshotWriter          writer;
@@ -85,9 +88,10 @@ public class LocalSnapshotCopier extends SnapshotCopier {
             internalCopy();
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt(); //reset/ignore
-        } catch (final IOException e) {
+        } catch (final Exception e) {
             LOG.error("Fail to start copy job", e);
         }
+        this.finishLatch.countDown();
     }
 
     private void internalCopy() throws IOException, InterruptedException {
@@ -101,13 +105,19 @@ public class LocalSnapshotCopier extends SnapshotCopier {
             if (!isOk()) {
                 break;
             }
-            final Set<String> files = this.remoteSnapshot.listFiles();
+//            final Set<String> files = this.remoteSnapshot.listFiles();
+            List<String> files = new ArrayList<>(this.remoteSnapshot.listFiles());
+            Collections.sort(files);
             for (final String file : files) {
                 copyFile(file);
             }
         } while (false);
-        if (!isOk() && this.writer != null && this.writer.isOk()) {
-            this.writer.setError(getCode(), getErrorMsg());
+        if (!isOk() && this.writer != null) {
+            LOG.info("Fail to copy snapshot. {}. total-need={} copied={}",
+                    this.writer.getPath(), this.remoteSnapshot.listFiles().size(), this.writer.listFiles().size());
+            if (this.writer.isOk()) {
+                this.writer.setError(getCode(), getErrorMsg());
+            }
         }
         if (this.writer != null) {
             Utils.closeQuietly(this.writer);
@@ -115,6 +125,8 @@ public class LocalSnapshotCopier extends SnapshotCopier {
         }
         if (isOk()) {
             this.reader = (LocalSnapshotReader) this.storage.open();
+            LOG.info("Copy snapshot OK. {}. total-need={} copied={}",
+                    this.reader.getPath(), this.remoteSnapshot.listFiles().size(), this.reader.listFiles().size());
         }
     }
 
@@ -166,8 +178,12 @@ public class LocalSnapshotCopier extends SnapshotCopier {
             } finally {
                 this.lock.unlock();
             }
-            if (!session.status().isOk() && isOk()) {
-                setError(session.status().getCode(), session.status().getErrorMsg());
+            if (!session.status().isOk()) {
+                if (isOk()) {
+                    setError(session.status().getCode(), session.status().getErrorMsg());
+                } else {
+                    LOG.error("Fail to copy {} {}", fileName, session.status());
+                }
                 return;
             }
             if (!this.writer.addFile(fileName, meta)) {
@@ -177,6 +193,7 @@ public class LocalSnapshotCopier extends SnapshotCopier {
             if (!this.writer.sync()) {
                 setError(RaftError.EIO, "Fail to sync writer");
             }
+            LOG.info("copy snapshot file ok: {}", fileName);
         } finally {
             if (session != null) {
                 Utils.closeQuietly(session);
@@ -235,13 +252,19 @@ public class LocalSnapshotCopier extends SnapshotCopier {
                 setError(session.status().getCode(), session.status().getErrorMsg());
                 return;
             }
-            if (!this.remoteSnapshot.getMetaTable().loadFromIoBufferAsRemote(metaBuf.getBuffer())) {
+
+            LocalSnapshotMetaTable metaTable = this.remoteSnapshot.getMetaTable();
+            if (!metaTable.loadFromIoBufferAsRemote(metaBuf.getBuffer())) {
                 LOG.warn("Bad meta_table format");
                 setError(-1, "Bad meta_table format from remote");
                 return;
             }
-            Requires.requireTrue(this.remoteSnapshot.getMetaTable().hasMeta(), "Invalid remote snapshot meta:%s",
-                this.remoteSnapshot.getMetaTable().getMeta());
+            Requires.requireTrue(metaTable.hasMeta(), "Invalid remote snapshot meta:%s",
+                metaTable.getMeta());
+
+            LOG.info("RemoteSnapshotMeta loaded: {}, lastIndex={}, lastTerm={}, files={}",
+                    this.storage.getPath(), metaTable.getMeta().getLastIncludedIndex(),
+                    metaTable.getMeta().getLastIncludedTerm(), metaTable.listFiles().size());
         } finally {
             if (session != null) {
                 Utils.closeQuietly(session);
@@ -250,7 +273,7 @@ public class LocalSnapshotCopier extends SnapshotCopier {
     }
 
     boolean filterBeforeCopy(final LocalSnapshotWriter writer, final SnapshotReader lastSnapshot) throws IOException {
-        final Set<String> existingFiles = writer.listFiles();
+        final Set<String> existingFiles = new HashSet<>(writer.listFiles()) ;
         final ArrayDeque<String> toRemove = new ArrayDeque<>();
         for (final String file : existingFiles) {
             if (this.remoteSnapshot.getFileMeta(file) == null) {
@@ -299,10 +322,7 @@ public class LocalSnapshotCopier extends SnapshotCopier {
                 final String sourcePath = lastSnapshot.getPath() + File.separator + fileName;
                 final String destPath = writer.getPath() + File.separator + fileName;
                 FileUtils.deleteQuietly(new File(destPath));
-                try {
-                    Files.createLink(Paths.get(destPath), Paths.get(sourcePath));
-                } catch (final IOException e) {
-                    LOG.error("Fail to link {} to {}", sourcePath, destPath, e);
+                if (FileHelper.createLink(sourcePath, destPath) == null) {
                     continue;
                 }
                 // Don't delete linked file
@@ -322,10 +342,14 @@ public class LocalSnapshotCopier extends SnapshotCopier {
             FileUtils.deleteQuietly(new File(removePath));
             LOG.info("Deleted file: {}", removePath);
         }
+
+        LOG.info("{}: snapshot files filter summary: total={},  skipped_exist={}",
+                writer.getPath(), remoteFiles.size(), writer.listFiles().size());
         return true;
     }
 
     private void filter() throws IOException {
+        LOG.info("LocalSnapshotCopier filterBeforeCopyRemote = {}, {}", this.filterBeforeCopyRemote, this);
         this.writer = (LocalSnapshotWriter) this.storage.create(!this.filterBeforeCopyRemote);
         if (this.writer == null) {
             setError(RaftError.EIO, "Fail to create snapshot writer");
@@ -430,6 +454,11 @@ public class LocalSnapshotCopier extends SnapshotCopier {
                 throw new IllegalStateException(e);
             }
         }
+    }
+
+    @Override
+    public void waitFinished() throws InterruptedException {
+        this.finishLatch.await();
     }
 
     @Override

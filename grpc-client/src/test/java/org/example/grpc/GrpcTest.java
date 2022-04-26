@@ -101,19 +101,11 @@ public class GrpcTest extends GrpcClientBase{
     }
 
     @Test
-    public void testScan(){
-        scan(a1[0], "a1");
+    public void testScan() throws ExecutionException, InterruptedException {
 
-        try {
-            Thread.sleep(100000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        scan(a1[0], "a1").get();
+
+       System.out.println("OK");
     }
-    @Test
-    public void test(){
-        long l = System.currentTimeMillis();
-        System.out.println(l);
-        System.out.println(String.format("%016x", l));
-    }
+
 }

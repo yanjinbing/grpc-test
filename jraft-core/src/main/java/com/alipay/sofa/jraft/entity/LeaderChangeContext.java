@@ -32,12 +32,14 @@ import com.alipay.sofa.jraft.Status;
 public class LeaderChangeContext {
 
     private PeerId leaderId;
+    private String groupId;
     private long   term;
     private Status status;
 
-    public LeaderChangeContext(PeerId leaderId, long term, Status status) {
+    public LeaderChangeContext(PeerId leaderId, String groupId, long term, Status status) {
         super();
         this.leaderId = leaderId;
+        this.groupId = groupId;
         this.term = term;
         this.status = status;
     }
@@ -48,6 +50,12 @@ public class LeaderChangeContext {
 
     public void setLeaderId(PeerId leaderId) {
         this.leaderId = leaderId;
+    }
+
+    public String getGroupId() { return this.groupId; }
+
+    public void setGroupId(String groupId) {
+        this.groupId = groupId;
     }
 
     public long getTerm() {
@@ -107,8 +115,8 @@ public class LeaderChangeContext {
 
     @Override
     public String toString() {
-        return "LeaderChangeContext [leaderId=" + this.leaderId + ", term=" + this.term + ", status=" + this.status
-               + "]";
+        return "LeaderChangeContext [leaderId=" + this.leaderId + ", term=" + this.term +
+                ", groupId=" + this.groupId + ", status=" + this.status + "]";
     }
 
 }

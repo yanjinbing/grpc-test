@@ -49,7 +49,7 @@ import com.google.protobuf.ZeroByteStringHelper;
  * 2018-Mar-30 10:23:13 AM
  */
 public final class FileService {
-
+    public static final int DATA_BUF_INITIAL_SIZE = 1024*1024;
     private static final Logger                   LOG           = LoggerFactory.getLogger(FileService.class);
 
     private static final FileService              INSTANCE      = new FileService();
@@ -100,7 +100,8 @@ public final class FileService {
                 reader.getPath(), request.getFilename(), request.getOffset(), request.getCount());
         }
 
-        final ByteBufferCollector dataBuffer = ByteBufferCollector.allocate();
+        final ByteBufferCollector dataBuffer = ByteBufferCollector.allocate(
+                Math.min(DATA_BUF_INITIAL_SIZE, (int)request.getCount()));
         final GetFileResponse.Builder responseBuilder = GetFileResponse.newBuilder();
         try {
             final int read = reader

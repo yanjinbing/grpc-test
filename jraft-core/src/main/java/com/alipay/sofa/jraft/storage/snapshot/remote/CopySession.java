@@ -208,7 +208,13 @@ public class CopySession implements Session {
     }
 
     private void onTimer() {
-        RpcUtils.runInThread(this::sendNextRpc);
+        RpcUtils.runInThread(()->{
+            try {
+                this.sendNextRpc();
+            } catch (Throwable t) {
+                LOG.error("timer to sendNextRpc failed", t);
+            }
+        });
     }
 
     void onRpcReturned(final Status status, final GetFileResponse response) {
@@ -297,7 +303,7 @@ public class CopySession implements Session {
             }
             this.requestBuilder.setCount(newMaxCount);
             final RpcRequests.GetFileRequest request = this.requestBuilder.build();
-            LOG.debug("Send get file request {} to peer {}", request, this.endpoint);
+            LOG.debug("Send get file request {} to peer {}", Utils.getMessageDesc(request), this.endpoint);
             this.rpcCall = this.rpcService.getFile(this.endpoint, request, this.copyOptions.getTimeoutMs(), this.done);
         } finally {
             this.lock.unlock();

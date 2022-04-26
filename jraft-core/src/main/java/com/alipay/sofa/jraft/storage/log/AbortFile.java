@@ -19,7 +19,9 @@ package com.alipay.sofa.jraft.storage.log;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.SimpleTimeZone;
 
 /**
  * Abort file
@@ -27,6 +29,14 @@ import java.util.Date;
  * @author boyan(boyan@antfin.com)
  */
 public class AbortFile {
+
+    private static SimpleDateFormat dateFormatGMT;
+
+    static {
+        dateFormatGMT = new SimpleDateFormat();
+        dateFormatGMT.setTimeZone(new SimpleTimeZone(0, "GMT"));
+        dateFormatGMT.applyPattern("dd MMM yyyy HH:mm:ss z");
+    }
 
     private final String path;
 
@@ -53,7 +63,7 @@ public class AbortFile {
     private void writeDate() throws IOException {
         final File file = new File(this.path);
         try (final FileWriter writer = new FileWriter(file, false)) {
-            writer.write(new Date().toGMTString());
+            writer.write(dateFormatGMT.format(new Date()));
             writer.write(System.lineSeparator());
         }
     }

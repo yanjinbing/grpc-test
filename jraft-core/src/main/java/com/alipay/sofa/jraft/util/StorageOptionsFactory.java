@@ -256,11 +256,13 @@ public final class StorageOptionsFactory {
 
         // Seems like the rocksDB jni for Windows doesn't come linked with any of the
         // compression type
+        /**
         if (!Platform.isWindows()) {
             opts.setCompressionType(CompressionType.LZ4_COMPRESSION) //
                 .setCompactionStyle(CompactionStyle.LEVEL) //
                 .optimizeLevelStyleCompaction();
         }
+         */
 
         // https://github.com/facebook/rocksdb/pull/5744
         opts.setForceConsistencyChecks(true);

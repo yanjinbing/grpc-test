@@ -503,8 +503,8 @@ public class RocksDBLogStorage implements LogStorage, Describer {
                 final WriteContext writeCtx = newWriteContext();
                 final long logIndex = entry.getId().getIndex();
                 final byte[] valueBytes = this.logEntryEncoder.encode(entry);
-                final byte[] newValueBytes = onDataAppend(logIndex, valueBytes, writeCtx);
                 writeCtx.startJob();
+                final byte[] newValueBytes = onDataAppend(logIndex, valueBytes, writeCtx);
                 this.db.put(this.defaultHandle, this.writeOptions, getKeyBytes(logIndex), newValueBytes);
                 writeCtx.joinAll();
                 if (newValueBytes != valueBytes) {

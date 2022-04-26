@@ -68,6 +68,7 @@ public class LogManagerTest extends BaseStorageTest {
         super.setup();
         this.confManager = new ConfigurationManager();
         final RaftOptions raftOptions = new RaftOptions();
+        raftOptions.setMaxLogSize(15);
         this.logStorage = newLogStorage(raftOptions);
         this.logManager = new LogManagerImpl();
         final LogManagerOptions opts = new LogManagerOptions();
@@ -103,6 +104,14 @@ public class LogManagerTest extends BaseStorageTest {
         assertEquals(0, lastLogId.getIndex());
         assertTrue(this.logManager.checkConsistency().isOk());
     }
+
+    @Test
+    public void testHasAvailableCapacityToAppendEntries() {
+        assertTrue(this.logManager.hasAvailableCapacityToAppendEntries(1));
+        assertTrue(this.logManager.hasAvailableCapacityToAppendEntries(10));
+        assertFalse(this.logManager.hasAvailableCapacityToAppendEntries(1000000));
+    }
+
 
     @Test
     public void testAppendOneEntry() throws Exception {
@@ -349,9 +358,25 @@ public class LogManagerTest extends BaseStorageTest {
         return mockEntries;
     }
 
+    private List<LogEntry> mockAddEntries(int from, int to, int dataSize)
+            throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final List<LogEntry> mockEntries = TestUtils.mockEntries(from, to, dataSize);
+        this.logManager.appendEntries(new ArrayList<>(mockEntries), new LogManager.StableClosure() {
+
+            @Override
+            public void run(final Status status) {
+                assertTrue(status.isOk());
+                latch.countDown();
+            }
+        });
+        latch.await();
+        return mockEntries;
+    }
+
     @Test
     public void testSetSnapshot() throws Exception {
-        final List<LogEntry> entries = mockAddEntries();
+        final List<LogEntry> entries = mockAddEntries(0, 10, 1);
         RaftOutter.SnapshotMeta meta = RaftOutter.SnapshotMeta.newBuilder().setLastIncludedIndex(3)
             .setLastIncludedTerm(2).addPeers("localhost:8081").build();
         this.logManager.setSnapshot(meta);
@@ -364,11 +389,23 @@ public class LogManagerTest extends BaseStorageTest {
         this.logManager.setSnapshot(meta);
 
         Thread.sleep(1000);
+        // Still valid
         for (int i = 0; i < 10; i++) {
-            if (i > 2) {
+            Assert.assertEquals(entries.get(i), this.logManager.getEntry(i + 1));
+        }
+
+        final List<LogEntry> entries10to20 = mockAddEntries(10, 20, 1);
+        entries.addAll(entries10to20);
+        meta = RaftOutter.SnapshotMeta.newBuilder().setLastIncludedIndex(10).setLastIncludedTerm(9)
+                .addPeers("localhost:8081").build();
+        this.logManager.setSnapshot(meta);
+
+        Thread.sleep(1000);
+        for (int i = 0; i < 20; i++) {
+            if (i > 4) {
                 Assert.assertEquals(entries.get(i), this.logManager.getEntry(i + 1));
             } else {
-                //before index=3 logs were dropped.
+                // before index=5 logs were dropped.
                 assertNull(this.logManager.getEntry(i + 1));
             }
         }

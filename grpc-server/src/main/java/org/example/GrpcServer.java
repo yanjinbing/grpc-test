@@ -324,25 +324,22 @@ public class GrpcServer {
          */
         public io.grpc.stub.StreamObserver<ScanRequest> scan(
                 io.grpc.stub.StreamObserver<ScanResponse> response) {
-            byte[] buf = new byte[1024*1024];
-            buf[1024*1024-1] = 0;
-            //buf[0] = 0;
+
 
             return new StreamObserver<ScanRequest>() {
-                int count = 0;
+
                 @Override
                 public void onNext(ScanRequest request) {
+                    System.out.println("Receive client msg " + request);
                     String id = request.getId();
-                    for(int i = 0; i<10000; i++) {
-                        buf[i] = 10;
-                        ByteString b = ByteString.copyFrom(buf);
-                        response.onNext(ScanResponse.newBuilder()
-                                .setId(id)
-                                .setData(ByteString.copyFromUtf8(id + " - " + count++))
-                                .build());
 
-                        System.out.println("Send " + id + " - " + count);
-                    }
+                    response.onNext(ScanResponse.newBuilder()
+                            .setId(id)
+                            .setData(ByteString.copyFromUtf8(id + " - reply "))
+                            .build());
+
+                    System.out.println("Send reply " + id + " - ");
+                    response.onCompleted();
                 }
 
                 @Override
@@ -380,7 +377,9 @@ public class GrpcServer {
             this.engine.getRaftNode(groupId).apply(task);
         }
 
-
+        protected void readIndex(String groupId){
+            System.gc();
+        }
 
     }
 

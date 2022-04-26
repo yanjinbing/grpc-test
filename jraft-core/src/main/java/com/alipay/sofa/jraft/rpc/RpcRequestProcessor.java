@@ -18,6 +18,7 @@ package com.alipay.sofa.jraft.rpc;
 
 import java.util.concurrent.Executor;
 
+import com.alipay.sofa.jraft.util.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,7 +56,7 @@ public abstract class RpcRequestProcessor<T extends Message> implements RpcProce
                 rpcCtx.sendResponse(msg);
             }
         } catch (final Throwable t) {
-            LOG.error("handleRequest {} failed", request, t);
+            LOG.error("handleRequest {} failed. {}", Utils.getMessageDesc(request), t);
             rpcCtx.sendResponse(RpcFactoryHelper //
                 .responseFactory() //
                 .newResponse(defaultResp(), -1, "handleRequest internal error"));

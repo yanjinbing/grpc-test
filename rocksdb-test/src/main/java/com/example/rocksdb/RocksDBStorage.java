@@ -182,6 +182,9 @@ public class RocksDBStorage {
                             iterator.next();
                         }
                         System.out.println("1==" + cnt);
+                        iterator.next();
+                        System.out.println("2==" + cnt);
+
                     }
 
                     db.flush(new FlushOptions().setWaitForFlush(true), columnFamilyHandles);

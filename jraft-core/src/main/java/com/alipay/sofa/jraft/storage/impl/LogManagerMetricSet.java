@@ -14,51 +14,51 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.util;
+package com.alipay.sofa.jraft.storage.impl;
 
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricSet;
-import com.lmax.disruptor.RingBuffer;
 
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Disruptor metric set including buffer-size, remaining-capacity etc.
+ * Log manager metric set.
  */
-public final class DisruptorMetricSet implements MetricSet {
+public final class LogManagerMetricSet implements MetricSet {
+    private long farthestFollowerLogIndex;
+    private long survivalLogCount;
 
-    private final RingBuffer<?> ringBuffer;
-    private int backpressure;
-
-    public DisruptorMetricSet(RingBuffer<?> ringBuffer) {
+    public LogManagerMetricSet() {
         super();
-        this.ringBuffer = ringBuffer;
     }
 
-    public RingBuffer<?> getRingBuffer() {
-        return ringBuffer;
+    public long getFarthestFollowerLogIndex() {
+        return farthestFollowerLogIndex;
     }
 
-    public int getBackpressure() {
-        return backpressure;
+    public void setFarthestFollowerLogIndex(long farthestFollowerLogIndex) {
+        this.farthestFollowerLogIndex = farthestFollowerLogIndex;
     }
 
-    public void setBackpressure(int backpressure) {
-        this.backpressure = backpressure;
+    public long getSurvivalLogCount() {
+        return survivalLogCount;
+    }
+
+    public void setSurvivalLogCount(long survivalLogCount) {
+        this.survivalLogCount = survivalLogCount;
     }
 
     /**
-     * Return disruptor metrics
-     * @return disruptor metrics map
+     * Return log manager metrics
+     * @return log manager metrics map
      */
     @Override
     public Map<String, Metric> getMetrics() {
         final Map<String, Metric> gauges = new HashMap<>();
-        gauges.put("buffer-size", (Gauge<Integer>) this.ringBuffer::getBufferSize);
-        gauges.put("remaining-capacity", (Gauge<Long>) this.ringBuffer::remainingCapacity);
-        gauges.put("backpressure", (Gauge<Integer>) this::getBackpressure);
+        gauges.put("farthest-follower-log-index", (Gauge<Long>) this::getFarthestFollowerLogIndex);
+        gauges.put("survival-log-count", (Gauge<Long>) this::getSurvivalLogCount);
         return gauges;
     }
 }

@@ -64,12 +64,17 @@ public final class ThreadHelper {
         SPINNER.onSpinWait();
     }
 
+    public static void sleep(long millis) {
+        SPINNER.sleep(millis);
+    }
+
     private ThreadHelper() {
     }
 
-    public static abstract class Spinner {
+    public abstract static class Spinner {
 
         public abstract void onSpinWait();
+        public abstract void sleep(long millis);
     }
 
     static class DefaultSpinner extends Spinner {
@@ -77,6 +82,15 @@ public final class ThreadHelper {
         @Override
         public void onSpinWait() {
             Thread.yield();
+        }
+
+        @Override
+        public void sleep(long millis) {
+            try {
+                Thread.sleep(millis);
+            } catch (InterruptedException e) {
+                LOG.error("DefaultSpinner onSleepOne", e);
+            }
         }
     }
 
