@@ -348,6 +348,12 @@ public interface Node extends Lifecycle<NodeOptions>, Describer {
     ReplicatorGroup getReplicatorGroup();
 
     /**
+     * Get the replicator state of peerid.
+     * @return
+     */
+    Replicator.State getReplicatorState(final PeerId peerId);
+
+    /**
      * Get current configuration.
      * @return
      */

@@ -3538,6 +3538,16 @@ public class NodeImpl implements Node, RaftServerService {
     }
 
     @Override
+    public Replicator.State getReplicatorState(final PeerId peerId) {
+        ThreadId threadId = this.replicatorGroup.getReplicator(peerId);
+        if (threadId == null) {
+            return null;
+        } else {
+            return Replicator.getState(threadId);
+        }
+    }
+
+    @Override
     public boolean isAllReplicatorsReplicated(){
         this.readLock.lock();
         List<PeerId> peerIdList;

@@ -185,7 +185,7 @@ public class RaftEngine {
         raftNode.addReplicatorStateListener(new Replicator.ReplicatorStateListener() {
             @Override
             public void onCreated(PeerId peer) {
-                System.out.println("Replicator onCreated ");
+                System.out.println("Replicator onCreated " + peer);
             }
 
             @Override
@@ -195,7 +195,11 @@ public class RaftEngine {
 
             @Override
             public void onDestroyed(PeerId peer) {
-                System.out.println("Replicator onDestroyed ");
+                System.out.println("Replicator onDestroyed " + peer);
+            }
+            @Override
+            public void stateChanged(final PeerId peer, final ReplicatorState newState) {
+                System.out.println("Replicator changed " +peer + " - " + newState + " - " + raftNode.getReplicatorState(peer));
             }
         });
 
@@ -208,15 +212,7 @@ public class RaftEngine {
         raftMonitors.put(groupId, new RaftMonitor(
                 raftNode.getNodeMetrics().getMetricRegistry(), 1));
 
-
-        Status status = raftNode.resetPeers(nodeOptions.getInitialConf());
-        if ( !status.isOk())
-            raftNode.changePeers(nodeOptions.getInitialConf(), status1 -> {
-                System.out.println("changepeers");
-            });
-        //    NodeOptions ops = raftNode.getOptions();
         System.out.println("Start raft OK!!!");
-
     }
 
     public Node getRaftNode(String groupId) throws Exception {
