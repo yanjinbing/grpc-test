@@ -26,8 +26,9 @@ public class GrpcTest extends GrpcClientBase{
     @Test
     public void transferLeader(){
         String groupId = "a1";
+        String leader = a3[0];
         String peer = a2[1];
-        transferLeader(a3[0], groupId, peer);
+        transferLeader(leader, groupId, peer);
     }
     @Test
     public void startRaftNode(){
@@ -68,9 +69,10 @@ public class GrpcTest extends GrpcClientBase{
     @Test
     public void testSendOne(){
         String groupId = "a1";
+        String leader = a3[0];
         //setNormalMode(a1[0], groupId);
         for(int i = 0; i<1; i++) {
-            sendOne(a1[0], groupId,
+            sendOne(leader, groupId,
                     ByteString.copyFromUtf8("Hello"), ByteString.copyFromUtf8("Hello raft"));
         }
     }

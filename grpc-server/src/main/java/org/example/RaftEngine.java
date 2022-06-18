@@ -122,7 +122,7 @@ public class RaftEngine {
      * @param peersList 集群地址
      */
     public void startRaft(String groupId, String dataPath, String peersList) {
-        System.out.println("Start raft " + groupId + " peers " + peersList);
+        System.out.println("Start raft " + groupId + " peers " + peersList + " " + dataPath);
         String logPath = dataPath + "/log/" + groupId;
         String metaPath = dataPath + "/meta/" + groupId;
         String snapPath = dataPath + "/snapshot/" + groupId;
@@ -144,7 +144,7 @@ public class RaftEngine {
         nodeOptions.setSnapshotUri(snapPath);
         // 初始集群
         nodeOptions.setInitialConf(initConf);
-        nodeOptions.setElectionTimeoutMs(5000);
+        nodeOptions.setElectionTimeoutMs(10000);
         // 快照时间间隔
    //     nodeOptions.setSnapshotIntervalSecs(10);
         nodeOptions.setSharedVoteTimer(true);

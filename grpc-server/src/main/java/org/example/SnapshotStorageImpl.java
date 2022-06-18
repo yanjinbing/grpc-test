@@ -178,6 +178,11 @@ public class SnapshotStorageImpl extends LocalSnapshotStorage {
         }
 
         @Override
+        public void waitFinished() throws InterruptedException {
+
+        }
+
+        @Override
         public void start() {
 
         }

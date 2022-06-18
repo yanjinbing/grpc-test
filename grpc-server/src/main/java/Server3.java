@@ -5,12 +5,14 @@ import java.io.IOException;
 
 public class Server3 {
     public static void main(String[] args) throws IOException, InterruptedException {
-        deleteDir(new File("d:/test/raft/3"));
+        String raftPath = "/tmp/raft/3";
+        deleteDir(new File(raftPath));
         String peerList = "127.0.0.1:8081::100,127.0.0.1:8082::80,127.0.0.1:8083::60";
+        //  String peerList = "127.0.0.1:8081::100";
         GrpcServer.main(new String[]{
-                "d:/test/raft/3",
+                raftPath,
                 "8093",
-                "127.0.0.1:8083",
+                "127.0.0.1:8083::60",
                 peerList,
                 "a1"
         });

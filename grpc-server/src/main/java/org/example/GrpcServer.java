@@ -121,7 +121,7 @@ public class GrpcServer {
                             }
                         });
 
-                engine.createSnapshot(groupId, 11);
+           //     engine.createSnapshot(groupId, 11);
             } catch (Exception e) {
                 observer.onError(io.grpc.Status.fromThrowable(e).asException());
                 observer.onCompleted();

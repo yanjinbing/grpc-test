@@ -5,7 +5,7 @@ import java.io.IOException;
 
 public class Server5 {
     public static void main(String[] args) throws IOException, InterruptedException {
-        deleteDir(new File("d:/test/raft/5"));
+        deleteDir(new File("/tmp/raft/5"));
         GrpcServer.main(new String[]{
                 "d:/test/raft/5",
                 "8095",
