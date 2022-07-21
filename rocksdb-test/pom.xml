@@ -14,7 +14,8 @@
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
-        <rocksdb.version>6.22.1.1</rocksdb.version>
+        <rocksdb.version>6.28.2</rocksdb.version>
+        <grpc.version>1.41.0</grpc.version>
     </properties>
 
     <dependencies>
@@ -23,7 +24,12 @@
             <artifactId>rocksdbjni</artifactId>
             <version>${rocksdb.version}</version>
         </dependency>
-
+        <dependency>
+            <groupId>org.example</groupId>
+            <artifactId>grpc-proto</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
         <!-- https://mvnrepository.com/artifact/commons-codec/commons-codec -->
         <dependency>
             <groupId>commons-codec</groupId>
@@ -41,7 +47,7 @@
                     <archive>
                         <manifest>
                             <addClasspath>true</addClasspath>
-                            <mainClass>com.example.rocksdb.SSTTest</mainClass>
+                            <mainClass>com.example.rocksdb.RocksdbTest</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
@@ -60,7 +66,7 @@
                             <archive>
                                 <manifest>
                                     <mainClass>
-                                        com.example.rocksdb.SSTTest
+                                        com.example.rocksdb.RocksdbTest
                                     </mainClass>
                                 </manifest>
                             </archive>

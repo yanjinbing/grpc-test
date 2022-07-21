@@ -100,3 +100,9 @@ message ScanResponse{
   bytes data = 2;
   bytes buf = 3;
 }
+
+message Kv {
+  bytes key = 1;
+  bytes value = 2;
+  int32 code = 9;
+}
