@@ -24,6 +24,7 @@ import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Hello world!
@@ -317,6 +318,8 @@ public class GrpcServer {
             observer.onCompleted();
         }
 
+        AtomicLong logCounter = new AtomicLong(0);
+        volatile long startTime = 0;
         /**
          * 流式传输测试
          *
@@ -324,21 +327,21 @@ public class GrpcServer {
          */
         public io.grpc.stub.StreamObserver<ScanRequest> scan(
                 io.grpc.stub.StreamObserver<ScanResponse> response) {
-
+            startTime = System.currentTimeMillis();
 
             return new StreamObserver<ScanRequest>() {
 
                 @Override
                 public void onNext(ScanRequest request) {
-                    System.out.println("Receive client msg " + request);
                     String id = request.getId();
-
                     response.onNext(ScanResponse.newBuilder()
                             .setId(id)
                             .setData(ByteString.copyFromUtf8(id + " - reply "))
                             .build());
+                    if ( logCounter.addAndGet(request.getDataCount()) > 10000000) {
 
-                    System.out.println("Send reply " + id + " - ");
+                    }
+
                     response.onCompleted();
                 }
 
@@ -401,7 +404,7 @@ public class GrpcServer {
 
         if (args.length < 5) {
             System.out.println("Useage : {dataPath} {grpcPort} {raftAddr} {peersList} {groupId}");
-            System.out.println("Example:  /tmp/server1 127.0.0.1:8081 127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083 g1");
+            System.out.println("Example:  /tmp/server1 127.0.0.1:8080 127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083 g1");
             System.exit(1);
         }
 

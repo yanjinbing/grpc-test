@@ -14,7 +14,7 @@
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
-        <rocksdb.version>6.28.2</rocksdb.version>
+        <rocksdb.version>6.29.5</rocksdb.version>
         <grpc.version>1.41.0</grpc.version>
     </properties>
 
@@ -36,6 +36,19 @@
             <artifactId>commons-codec</artifactId>
             <version>1.15</version>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/net.openhft/chronicle-map -->
+        <dependency>
+            <groupId>net.openhft</groupId>
+            <artifactId>chronicle-map</artifactId>
+            <version>3.22.8</version>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/org.apache.ignite/ignite-core -->
+        <dependency>
+            <groupId>org.apache.ignite</groupId>
+            <artifactId>ignite-core</artifactId>
+            <version>2.13.0</version>
+        </dependency>
+
     </dependencies>
     <build>
         <plugins>
@@ -47,7 +60,7 @@
                     <archive>
                         <manifest>
                             <addClasspath>true</addClasspath>
-                            <mainClass>com.example.rocksdb.RocksdbTest</mainClass>
+                            <mainClass>com.example.rocksdb.Test</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
@@ -66,7 +79,7 @@
                             <archive>
                                 <manifest>
                                     <mainClass>
-                                        com.example.rocksdb.RocksdbTest
+                                        com.example.rocksdb.Test
                                     </mainClass>
                                 </manifest>
                             </archive>

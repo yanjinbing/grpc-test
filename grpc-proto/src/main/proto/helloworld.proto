@@ -93,12 +93,11 @@ enum WorkMode {
 
 message ScanRequest{
   string id = 1;
+  repeated Kv data = 2;
 }
 
 message ScanResponse{
   string id = 1;
-  bytes data = 2;
-  bytes buf = 3;
 }
 
 message Kv {
