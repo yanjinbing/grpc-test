@@ -7,8 +7,8 @@ public class Server1 {
     public static void main(String[] args) throws IOException, InterruptedException {
         String raftPath = "/tmp/raft/1";
         deleteDir(new File(raftPath));
-        String peerList = "127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083";
-      //  String peerList = "127.0.0.1:8081::100";
+        //String peerList = "127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083";
+        String peerList = "127.0.0.1:8081::100";
         GrpcServer.main(new String[]{
                 raftPath,
                 "8091",

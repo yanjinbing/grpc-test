@@ -3,6 +3,7 @@ package org.example.rpc;
 import com.alipay.sofa.jraft.option.RaftOptions;
 import com.alipay.sofa.jraft.option.RpcOptions;
 import com.alipay.sofa.jraft.storage.snapshot.local.LocalSnapshotWriter;
+import org.example.grpc.BatchRequest;
 import org.junit.Test;
 
 import java.io.File;
@@ -70,5 +71,17 @@ public class SnapshotRpcClientTest {
         CmdProcessor.TransSnapshotResponse response
                 =  client.transSnapshot("127.0.0.1:8081", request).get();
         System.out.println(response);
+    }
+
+    @Test
+    public void testSetField(){
+
+        List<String> messages = new ArrayList<>();
+        messages.add("Hello");
+        BatchRequest.Builder builder = BatchRequest.newBuilder();
+        builder.setField(BatchRequest.getDescriptor().findFieldByName("message"), messages);
+
+        System.out.println(builder.build());
+
     }
 }

@@ -190,10 +190,12 @@ public class GrpcClientBase {
     public Future scan(String address, String id){
 
         CompletableFuture future = new CompletableFuture<>();
-        ScanRequest request = ScanRequest.newBuilder().setId(id).build();
+        ScanRequest request = ScanRequest.newBuilder().setId(id)
+                .setData2(ByteString.copyFromUtf8(id)).build();
         StreamObserver<ScanRequest> requestStream = getStreamStub(address).scan(new StreamObserver<ScanResponse>() {
             @Override
             public void onNext(ScanResponse value) {
+                ScanResponse.newBuilder();
                 System.out.println("scan receive " + value.getData().toStringUtf8());
 
             }

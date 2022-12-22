@@ -94,7 +94,6 @@ public class RocksDBStorage {
 
                 RocksIterator iterator = db.newIterator(gvHandle, new ReadOptions()
                         .setSnapshot(snapshot)
-                        .setIterStartSeqnum(startSeqNum)
                         .setIterateLowerBound(new Slice(startKey))
                         .setIterateUpperBound(new Slice(endKey)));
                 iterator.seekToFirst();
@@ -148,7 +147,6 @@ public class RocksDBStorage {
             final List<ColumnFamilyHandle> columnFamilyHandles = new ArrayList<>();
 
             try (final DBOptions options = new DBOptions()
-                    .setPreserveDeletes(true)   // 保留删除
                     .setCreateIfMissing(true)
                     .setWriteBufferManager(bufferManager)
                     .setCreateMissingColumnFamilies(true);
@@ -168,13 +166,12 @@ public class RocksDBStorage {
                         db.put(columnFamilyHandles.get(0), String.format("good%06d", i).getBytes(), value);
                     }
                     System.out.println(db.getLatestSequenceNumber());
-                    db.setPreserveDeletesSequenceNumber(1000);
                     seqNo = 1000;
 
                     {
                         System.out.println(seqNo);
                         RocksIterator iterator = db.newIterator(columnFamilyHandles.get(1),
-                                new ReadOptions().setIterStartSeqnum(seqNo));
+                                new ReadOptions());
                         iterator.seekToFirst();
                         int cnt = 0;
                         while (iterator.isValid()) {
@@ -195,8 +192,7 @@ public class RocksDBStorage {
 
                     {
 
-                        final ReadOptions readOptions = new ReadOptions()
-                                .setIterStartSeqnum(seqNo);
+                        final ReadOptions readOptions = new ReadOptions();
                         final RocksIterator iterator = db.newIterator(columnFamilyHandles.get(1),
                                 readOptions);
                         iterator.seekToFirst();

@@ -155,6 +155,7 @@ public abstract class AbstractClientService implements ClientService {
             return false;
         } catch (final RemotingException e) {
             LOG.error("Fail to connect {}, remoting exception: {}.", endpoint, e.getMessage());
+
             return false;
         }
     }

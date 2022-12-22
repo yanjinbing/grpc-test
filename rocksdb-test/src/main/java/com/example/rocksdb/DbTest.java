@@ -65,8 +65,7 @@ public class DbTest {
     public static void readSST(String source) throws RocksDBException {
 
         try (Options options = new Options();
-             ReadOptions readOptions = new ReadOptions()
-                     .setIterStartSeqnum(1);
+             ReadOptions readOptions = new ReadOptions();
              SstFileReader reader = new SstFileReader(options)
         ) {
             reader.open(source);

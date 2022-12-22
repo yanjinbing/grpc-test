@@ -12,9 +12,10 @@ public class GrpcTest extends GrpcClientBase{
     String[] a2 = {"127.0.0.1:8092","127.0.0.1:8082"};
     String[] a3 = {"127.0.0.1:8093","127.0.0.1:8083"};
 
+    String[] a4 = {"127.0.0.1:8094","127.0.0.1:8084"};
     public String getLeader(){
         String groupId = "a1";
-        String leader = getLeader(a2[0], groupId);
+        String leader = getLeader(a1[0], groupId);
         System.out.println("Leader is " + leader);
         Map<String, String> peers = new HashMap<>();
         peers.put(a1[1], a1[0]);
@@ -52,6 +53,23 @@ public class GrpcTest extends GrpcClientBase{
        // addPeer(a1[0],groupId, a3[1]);
         changePeers(a1[0], groupId, peerList, "");
     }
+
+    @Test
+    public void testAddLearner(){
+        String groupId = "a1";
+        String peerList = a1[1];
+        String learner = a2[1];
+        changePeers(a1[0], groupId, peerList, learner);
+    }
+
+    @Test
+    public void testAddPeer2(){
+        String groupId = "a1";
+        String peerList = a1[1] + ";" + a3[1] + ";" + a4[1];
+     //   String learner = a2[1];
+        changePeers(a1[0], groupId, peerList, "");
+    }
+
 
     @Test
     public void testRemovePeer(){

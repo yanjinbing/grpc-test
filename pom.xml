@@ -15,6 +15,7 @@
       <module>dubbo-server</module>
       <module>rocksdb-test</module>
     <module>jraft-core</module>
+    <module>fastset</module>
   </modules>
 
   <name>grpc_test</name>

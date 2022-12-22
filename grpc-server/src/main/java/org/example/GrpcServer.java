@@ -13,7 +13,20 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
 import org.apache.commons.lang.StringUtils;
-import org.example.grpc.*;
+import org.example.grpc.GetLeaderReply;
+import org.example.grpc.GetLeaderRequest;
+import org.example.grpc.HelloReply;
+import org.example.grpc.HelloRequest;
+import org.example.grpc.HelloWorldGrpc;
+import org.example.grpc.Kv;
+import org.example.grpc.PeerReply;
+import org.example.grpc.PeerRequest;
+import org.example.grpc.RaftNodeReply;
+import org.example.grpc.RaftNodeRequest;
+import org.example.grpc.ScanRequest;
+import org.example.grpc.ScanResponse;
+import org.example.grpc.SetModeReply;
+import org.example.grpc.SetModeRequest;
 import org.example.rpc.RaftNodeProcessor;
 import org.example.rpc.RaftRpcClient;
 
@@ -105,6 +118,9 @@ public class GrpcServer {
             System.out.println("Grpc thread " + Thread.currentThread().getId());
             //创建任务，发送给其他peer
             String groupId = request.getGroupId();
+
+            System.out.println(StreamObserverUtil.getRemoteIP(observer));
+
 
             if (!engine.isLeader(groupId)) {
                 observer.onError(io.grpc.Status.ABORTED.asException());
@@ -337,8 +353,10 @@ public class GrpcServer {
                     response.onNext(ScanResponse.newBuilder()
                             .setId(id)
                             .setData(ByteString.copyFromUtf8(id + " - reply "))
+                            .setKv(Kv.newBuilder().setKey(ByteString.copyFromUtf8(id))
+                                    .setValue(ByteString.copyFromUtf8(id)).build())
                             .build());
-                    if ( logCounter.addAndGet(request.getDataCount()) > 10000000) {
+                    if (logCounter.addAndGet(request.getDataCount()) > 10000000) {
 
                     }
 
@@ -383,6 +401,8 @@ public class GrpcServer {
         protected void readIndex(String groupId){
             System.gc();
         }
+
+
 
     }
 

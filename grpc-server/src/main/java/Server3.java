@@ -8,7 +8,7 @@ public class Server3 {
         String raftPath = "/tmp/raft/3";
         deleteDir(new File(raftPath));
         String peerList = "127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083";
-        //  String peerList = "127.0.0.1:8081::100";
+       // String peerList = "127.0.0.1:8083";
         GrpcServer.main(new String[]{
                 raftPath,
                 "8093",

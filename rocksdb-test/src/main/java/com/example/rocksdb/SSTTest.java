@@ -22,6 +22,7 @@ public class SSTTest {
     }
 
     public static void main(String[] args) throws RocksDBException {
+        RocksDB.loadLibrary();;
         writeSST();//writeDb(args[0]);
         //String sstFile = "D:/test/rocksdbtest/000014.sst";
         //readSST(sstFile);
@@ -58,8 +59,7 @@ public class SSTTest {
     public static void readSST(String source) throws RocksDBException {
 
         try (Options options = new Options();
-             ReadOptions readOptions = new ReadOptions()
-                     .setIterStartSeqnum(1);
+             ReadOptions readOptions = new ReadOptions();
              SstFileReader reader = new SstFileReader(options)
         ) {
             reader.open(source);
@@ -120,7 +120,6 @@ public class SSTTest {
 
             try (final DBOptions options = new DBOptions()
                     .setCreateIfMissing(true)
-                    .setPreserveDeletes(true)
                     .setListeners(listeners)
                     .setCreateMissingColumnFamilies(true)
                     .setWriteBufferManager(new WriteBufferManager(128*1024*1024,
@@ -155,7 +154,6 @@ public class SSTTest {
 
                     for (ColumnFamilyHandle columnFamilyHandle : columnFamilyHandles) {
                         try (ReadOptions readOptions = new ReadOptions()
-                                .setIterStartSeqnum(seqNo)
                                 .setIgnoreRangeDeletions(false);
                              RocksIterator iterator = db.newIterator(columnFamilyHandle, readOptions)) {
                             iterator.seekToFirst();
